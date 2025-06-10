@@ -368,7 +368,9 @@ func getServiceTicket(c *client.Client, conf *config.Config, username, userDomai
 func requestServiceTicket(c *client.Client, service, serviceDomain, serviceHost, dcDomain string, signingKey []byte, signAes, inspect bool) (targetSPN string, err error) {
 	target := serviceDomain
 	// Maybe we should store the calculated SPN to use in the filename for the CCache?
-	if serviceHost != "" {
+	if serviceDomain == "" {
+		target = serviceHost // Netbios
+	} else if serviceHost != "" {
 		target = serviceHost + "." + serviceDomain
 	}
 	targetSPN = fmt.Sprintf("%s/%s", service, target)

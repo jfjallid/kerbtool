@@ -54,7 +54,7 @@ import (
 )
 
 var log = golog.Get("")
-var release string = "0.1.0"
+var release string = "0.1.1"
 var myFlags *flag.FlagSet
 
 var helpMsg = `
@@ -82,7 +82,7 @@ var helpConnectionOptions = `
       -p, --pass <pass>           Password
           --hash <NT Hash>        Hex encoded NT Hash for user password
       -n, --no-pass               Do not prompt for password
-          --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+          --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
           --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
           --socks-host <target>   Establish connection via a SOCKS5 proxy server
           --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -937,8 +937,10 @@ func main() {
 			args.spn = "krbtgt/" + upperFQDN
 		} else {
 			parts = strings.SplitN(args.serviceFQDN, ".", 2)
+			if len(parts) > 1 {
+				args.serviceDomain = parts[1]
+			}
 			args.serviceHost = parts[0]
-			args.serviceDomain = parts[1]
 			if !strings.EqualFold(args.serviceDomain, args.userDomain) {
 				args.referral = true
 			}

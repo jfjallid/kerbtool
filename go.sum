@@ -1,11 +1,11 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/jfjallid/go-smb v0.6.2 h1:ZmSB6qROi96lYPAHkak7AYC6k6eDniBLwIJNyr7T0TA=
-github.com/jfjallid/go-smb v0.6.2/go.mod h1:gCorMd5NXhyMR3f1/x+qTZRSN35/6iY5TuqFIWb+Ovg=
+github.com/jfjallid/go-smb v0.6.3 h1:4DckQN82zgpiwQ6Mh9Ea+wI93bQdc39HVRg1D/3s5SU=
+github.com/jfjallid/go-smb v0.6.3/go.mod h1:iQGdab1exbCkefghUCrq1FvnSZZWBSq16LKKKj+XN24=
 github.com/jfjallid/gofork v1.7.6 h1:OYyS2HH597860gkDxxjNsl+NZRxoAnuRI6ZsP++kYKE=
 github.com/jfjallid/gofork v1.7.6/go.mod h1:r1EH4W9KY5iqtiGhAupnbzMRONsLDApdJ9EZH5NWFSc=
-github.com/jfjallid/gokrb5/v8 v8.5.0 h1:StPsAiNW2bjogvrHvELWLZx1xB8yPyt8w/pOWOel+fg=
-github.com/jfjallid/gokrb5/v8 v8.5.0/go.mod h1:B/NiCy81HOor1RSqAd6f1a81u5lPdRxq7vWpbf/KSKU=
+github.com/jfjallid/gokrb5/v8 v8.5.1 h1:6Mt7/s5Am1ygDWDoglP/9VH+k1io8ln7hmMF7BiEPFA=
+github.com/jfjallid/gokrb5/v8 v8.5.1/go.mod h1:B/NiCy81HOor1RSqAd6f1a81u5lPdRxq7vWpbf/KSKU=
 github.com/jfjallid/golog v0.3.4 h1:lmOy147qLG0wG2aI35iN28pCxgEMV5n9jBmNSAtqNT8=
 github.com/jfjallid/golog v0.3.4/go.mod h1:19Q/zg5OgPPd0xhFllokPnMzthzhFPZmiAGAokE7k58=
 github.com/jfjallid/mstypes v0.0.0-20250515143745-921e33065feb h1:moNS4hZmbLb3hrABAxwlxhrYAlh5GyMwEgu0gA/EN3M=
