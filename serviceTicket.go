@@ -52,7 +52,7 @@ var helpAskSTOptions = `
           --sign-aes <AES key>    Hex encoded AES128/256 key to sign or decrypt ticket with
           --impersonate <user>    Impersonate target username through S4U. Requires delegation to be setup
           --dump-all              Write all tickets to the CCache file
-          --ccache-file <path>    Filename to write requested ticket to (default creds.ccache)
+          --out-file <path>       Filename to write requested ticket to (default creds.ccache)
           --inspect               Inspect content of requested, forged or parsed ticket. Requires --sign-nt or --sign-aes
           --request-rc4           Ask for RC4 encrypted encPart of KDC REP, not the actual ticket (default false)
           --alt-service <SPN>     Override sname/SPN in ticket. Works if both services share account password.

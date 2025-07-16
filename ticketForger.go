@@ -55,7 +55,7 @@ var helpForgeOptions = `
           --impersonate <user>    Create a Saphire ticket, impersonating the specified user through Kerberos U2U
           --sign-nt <NT Hash>     Hex encoded NT Hash of key to sign or decrypt ticket with
           --sign-aes <AES key>    Hex encoded AES128/256 key to sign or decrypt ticket with
-          --ccache-file <path>    Filename to write requested/forged ticket to (default creds.ccache)
+          --out-file <path>       Filename to write requested/forged ticket to (default creds.ccache)
           --inspect               Inspect content of forged ticket. Requires --sign-nt or --sign-aes
           --request-rc4           Ask for RC4 encrypted encPart of KDC REP, not the actual ticket (default false)
           --krb5-conf <file>      Read krb5.conf file and use as config
