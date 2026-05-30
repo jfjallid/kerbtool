@@ -87,6 +87,9 @@ var helpConnectionOptions = `
       -n, --no-pass               Do not prompt for password
           --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
           --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+          --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+          --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+          --pfx-pass <pass>       Password for the PFX file (default: empty)
           --socks-host <target>   Establish connection via a SOCKS5 proxy server
           --socks-port <port>     SOCKS5 proxy port (default 1080)
           --dns-host <ip:port>    Override system's default DNS resolver 
@@ -251,6 +254,9 @@ type connArgs struct {
 	dcHost     string
 	dcDomain   string
 	aesKey     binaryArg
+	sha2       bool
+	pfxFile    string
+	pfxPass    string
 	dnsHost    string
 	port       int
 	timeout    time.Duration
@@ -303,6 +309,7 @@ type userArgs struct {
 	outputFilename string
 	ticketB64      string
 	dumpAllTickets bool
+	unpacHash           bool
 	// Non-user arguments
 	serviceDomain   string
 	templateTicket  messages.Ticket
@@ -340,6 +347,9 @@ func addConnectionArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.BoolVar(&argv.kerberos, "kerberos", false, "")
 	flagSet.StringVar(&argv.dc, "dc", "", "")
 	flagSet.Var(&argv.aesKey, "aes-key", "")
+	flagSet.BoolVar(&argv.sha2, "sha2", false, "")
+	flagSet.StringVar(&argv.pfxFile, "pfx", "", "")
+	flagSet.StringVar(&argv.pfxPass, "pfx-pass", "", "")
 	flagSet.StringVar(&argv.dnsHost, "dns-host", "", "")
 	flagSet.BoolVar(&argv.dnsTCP, "dns-tcp", false, "")
 	flagSet.BoolVar(&argv.noPass, "n", false, "")
@@ -355,6 +365,7 @@ func addAskTGTArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.BoolVar(&argv.requestRC4, "request-rc4", false, "")
 	flagSet.BoolVar(&argv.dumpAllTickets, "dump-all", false, "")
 	flagSet.StringVar(&argv.krb5ConfFile, "krb5-conf", "", "")
+	flagSet.BoolVar(&argv.unpacHash, "unpack-hash", false, "")
 }
 
 func addAskSTArgs(flagSet *flag.FlagSet, argv *userArgs) {
@@ -729,10 +740,18 @@ func setupKRB5Client(args *userArgs) (err error) {
 		return fmt.Errorf("Invalid length of NT hash provided with --hash argument")
 	}
 
+	var aesKeyEType int32
 	if args.aesKey != nil {
 		hashLen := len(args.aesKey)
 		switch hashLen {
-		case 16, 32:
+		case 16:
+			if args.sha2 {
+				aesKeyEType = etypeID.AES128_CTS_HMAC_SHA256_128
+			}
+		case 32:
+			if args.sha2 {
+				aesKeyEType = etypeID.AES256_CTS_HMAC_SHA384_192
+			}
 		default:
 			flag.Usage()
 			return fmt.Errorf("Invalid length of hex for --aesKey")
@@ -781,13 +800,22 @@ func setupKRB5Client(args *userArgs) (err error) {
 		}
 	}
 	if args.aesKey != nil {
-		args.c = client.NewWithKey(args.username, strings.ToUpper(args.userDomain), args.aesKey, args.krbConf, settings...)
+		args.c, _ = client.NewWithKeyEtype(args.username, args.userDomainUpper, args.aesKey, aesKeyEType, args.krbConf, settings...)
 		log.Infoln("Authenticated using aes key!")
 	} else if args.hash != nil {
-		args.c = client.NewWithHash(args.username, strings.ToUpper(args.userDomain), args.hash, args.krbConf, settings...)
+		args.c, _ = client.NewWithHash(args.username, args.userDomainUpper, args.hash, args.krbConf, settings...)
 		log.Infoln("Authenticated using NT Hash!")
+	} else if args.pfxFile != "" {
+		pfxData, readErr := os.ReadFile(args.pfxFile)
+		if readErr != nil {
+			err = fmt.Errorf("failed to read PFX file %s: %s", args.pfxFile, readErr)
+			log.Errorln(err)
+			return
+		}
+		args.c, _ = client.NewWithPFX(args.username, args.userDomainUpper, pfxData, args.pfxPass, args.krbConf, settings...)
+		log.Infoln("Authenticating using PKINIT with PFX certificate!")
 	} else if args.password != "" {
-		args.c = client.NewWithPassword(args.username, strings.ToUpper(args.userDomain), args.password, args.krbConf, settings...)
+		args.c, _ = client.NewWithPassword(args.username, args.userDomainUpper, args.password, args.krbConf, settings...)
 		log.Infoln("Authenticated using password!")
 	}
 	if args.c != nil {
