@@ -300,6 +300,7 @@ type userArgs struct {
 	serviceFQDN     string
 	service         string
 	serviceHost     string
+	serviceNameType int32 // KRB_NT_SRV_INST | KRB_NT_ENTERPRISE, derived from --spn / --target
 	signingKey      []byte
 	signAes128Key   bool
 	signAes256Key   bool
@@ -507,8 +508,87 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 	return
 }
 
+// parsedSPN decomposes an AD principal/SPN string into its components. The
+// raw string is always preserved and is what gets sent to the KDC verbatim;
+// the decomposed fields are only for derived purposes (filename templates,
+// CCache lookup targets, realm hints).
+//
+// AD-canonical formats supported (https://learn.microsoft.com/en-us/windows/win32/ad/name-formats-for-unique-spns):
+//
+//	serviceClass/instance                       -> KRB_NT_SRV_INST
+//	serviceClass/instance:port                  -> KRB_NT_SRV_INST
+//	serviceClass/instance:port/serviceName      -> KRB_NT_SRV_INST (4-part)
+//	user@dnsRealm                                -> KRB_NT_ENTERPRISE (UPN)
+//	sAMAccountName  (incl. computer$ form)       -> KRB_NT_ENTERPRISE (bare)
+//
+// An empty component means "not present in the input". The parser does no
+// validation: any string yields a parsedSPN — callers decide how strict to be.
+type parsedSPN struct {
+	raw      string
+	service  string // serviceClass; "" for UPN / sAMAccountName
+	host     string // instance host without :port or trailing /serviceName
+	domain   string // DNS suffix of host; "" for single-label hosts and for sAMAccountName
+	port     string // optional :port from the instance
+	svcName  string // optional trailing /serviceName in 4-part SPNs
+	upnRealm string // UPN @-suffix; "" for non-UPN inputs
+	isUPN    bool
+	isSAM    bool
+	nameType int32 // KRB_NT_SRV_INST or KRB_NT_ENTERPRISE
+}
+
+// fqdnLike reproduces the legacy serviceFQDN value: the full instance portion
+// (host + optional :port + optional /serviceName). Kept stable so existing
+// output-filename templates keep producing the same names.
+func (p parsedSPN) fqdnLike() string {
+	if p.service == "" {
+		return ""
+	}
+	if i := strings.Index(p.raw, "/"); i >= 0 {
+		return p.raw[i+1:]
+	}
+	return ""
+}
+
+func parseSPN(spn string) parsedSPN {
+	p := parsedSPN{raw: spn, nameType: nametype.KRB_NT_ENTERPRISE}
+	if i := strings.Index(spn, "/"); i >= 0 {
+		p.service = spn[:i]
+		p.nameType = nametype.KRB_NT_SRV_INST
+		instance := spn[i+1:]
+		// 4-part SPN: split off trailing /serviceName before parsing :port.
+		if j := strings.Index(instance, "/"); j >= 0 {
+			p.svcName = instance[j+1:]
+			instance = instance[:j]
+		}
+		if k := strings.Index(instance, ":"); k >= 0 {
+			p.port = instance[k+1:]
+			instance = instance[:k]
+		}
+		p.host = instance
+		if d := strings.Index(instance, "."); d > 0 && d < len(instance)-1 {
+			p.domain = instance[d+1:]
+		}
+		return p
+	}
+	if at := strings.Index(spn, "@"); at > 0 && at < len(spn)-1 {
+		p.isUPN = true
+		p.upnRealm = spn[at+1:]
+		return p
+	}
+	p.isSAM = true
+	return p
+}
+
 func setupKRB5Client(args *userArgs) (err error) {
-	settings := []func(*client.Settings){client.DisablePAFXFAST(true)}
+	// AllowDomainSuffixRealmGuess(false): kerbtool always supplies an
+	// explicit dcDomain to GetServiceTicketExt, so gokrb5's suffix-strip
+	// realm guess is unreachable in normal flows. Disable it explicitly so
+	// the behaviour stays well-defined if a future call path leaves
+	// dcDomain empty.
+	settings := []func(*client.Settings){
+		client.DisablePAFXFAST(true),
+		client.AllowDomainSuffixRealmGuess(false),
+	}
 	var p uint64
 
 	if args.username == "" {
@@ -915,34 +995,22 @@ func main() {
 	}
 
 	if args.spn != "" {
-		//TODO Support other format of SPN with backslash?
-		parts := strings.Split(args.spn, "/")
-		if len(parts) != 2 {
-			log.Errorln("Invalid SPN!")
-			return
-		}
-		//TODO Maybe this shouldn't be enforced as a valid SPN might be non-fqdn?
-		if !strings.Contains(parts[1], ".") {
-			log.Noticeln("Using SPN with netbios name and not FQDN")
-		}
-		args.service = parts[0]
-		args.serviceFQDN = parts[1]
-		if strings.EqualFold(args.service, "krbtgt") {
-			upperFQDN := strings.ToUpper(args.serviceFQDN)
-			if !strings.EqualFold(args.userDomain, args.serviceFQDN) {
-				// Cross realm ticket
-				args.referral = true
-			}
-			args.serviceDomain = upperFQDN
-			args.spn = "krbtgt/" + upperFQDN
+		ps := parseSPN(args.spn)
+		args.service = ps.service
+		args.serviceFQDN = ps.fqdnLike()
+		args.serviceDomain = ps.domain
+		// Legacy semantic: args.serviceHost is the first DNS label only,
+		// used together with args.serviceDomain to reconstruct an FQDN for
+		// CCache target lookups (see target derivation in setupKRB5Client).
+		if i := strings.Index(ps.host, "."); i > 0 {
+			args.serviceHost = ps.host[:i]
 		} else {
-			parts = strings.SplitN(args.serviceFQDN, ".", 2)
-			if len(parts) > 1 {
-				args.serviceDomain = parts[1]
-			}
-			args.serviceHost = parts[0]
-			if !strings.EqualFold(args.serviceDomain, args.userDomain) {
-				args.referral = true
+			args.serviceHost = ps.host
+		}
+		args.serviceNameType = ps.nameType
+	} else {
+		args.serviceNameType = nametype.KRB_NT_ENTERPRISE
+	}
 			}
 		}
 	}

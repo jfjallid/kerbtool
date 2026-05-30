@@ -77,11 +77,22 @@ func handleForge(args *userArgs) (err error) {
 		if !isFlagSet("out-file") {
 			args.targetFile = args.targetUsername + ".ccache"
 		}
+		args.userDomainUpper = strings.ToUpper(args.userDomain)
 	} else {
 		if !isFlagSet("out-file") {
-			fmt.Printf("service: %s\n", args.service)
-			fmt.Printf("serviceFQDN: %s\n", args.serviceFQDN)
-			args.targetFile = fmt.Sprintf("%s_%s_%s.ccache", args.targetUsername, args.service, args.serviceFQDN)
+			var sb strings.Builder
+			sb.WriteString(args.targetUsername)
+			if args.service != "" {
+				fmt.Fprintf(&sb, "_%s", args.service)
+			}
+			if args.serviceFQDN != "" {
+				fmt.Fprintf(&sb, "_%s", args.serviceFQDN)
+			} else {
+				fmt.Fprintf(&sb, "_%s", args.serviceDomain)
+			}
+			sb.WriteString(".ccache")
+			//args.targetFile = fmt.Sprintf("%s_%s_%s.ccache", args.targetUsername, args.service, args.serviceFQDN)
+			args.targetFile = sb.String()
 		}
 	}
 	if !isFlagSet("groups") {
@@ -154,6 +165,7 @@ func handleForge(args *userArgs) (err error) {
 			args.userDomain,
 			args.serviceDomain,
 			args.spn,
+			args.serviceNameType,
 			args.signAes,
 			args.signingKey,
 			args.ticketDuration,
@@ -347,7 +359,7 @@ func forgeTicket(args *userArgs) (ticket messages.Ticket, decryptedEncPart messa
 			return
 		}
 	} else {
-		ticket, decryptedEncPart, err = createTicket(args.targetUsername, args.userDomain, args.userDomain, fmt.Sprintf("krbtgt/%s", args.userDomainUpper), args.signAes, args.signingKey, args.ticketDuration, args.userRid, args.domainSid, args.groups, args.extraSids, args.logonServer, true)
+		ticket, decryptedEncPart, err = createTicket(args.targetUsername, args.userDomain, args.userDomain, fmt.Sprintf("krbtgt/%s", args.userDomainUpper), nametype.KRB_NT_SRV_INST, args.signAes, args.signingKey, args.ticketDuration, args.userRid, args.domainSid, args.groups, args.extraSids, args.logonServer, true)
 	}
 	return
 }
@@ -377,20 +389,16 @@ func setPacExtraSids(kerbInfo *pac.KerbValidationInfo, eSids SIDS) {
 	}
 }
 
-func createTicket(username, clientDomain, serverDomain, spn string, signAes bool, signingKey []byte, ticketDuration time.Duration, userRid uint64, domainSid SID, groups ridList, extraSids SIDS, logonServer string, isTGT bool) (ticket messages.Ticket, decryptedEncPart messages.EncTicketPart, err error) {
+func createTicket(username, clientDomain, serverDomain, spn string, snameType int32, signAes bool, signingKey []byte, ticketDuration time.Duration, userRid uint64, domainSid SID, groups ridList, extraSids SIDS, logonServer string, isTGT bool) (ticket messages.Ticket, decryptedEncPart messages.EncTicketPart, err error) {
 	crealm := strings.ToUpper(clientDomain)
 	srealm := strings.ToUpper(serverDomain)
-	cname := types.NewPrincipalName(1, username)
-	var sname types.PrincipalName
+	cname := types.NewPrincipalName(nametype.KRB_NT_PRINCIPAL, username)
 	if isTGT || (clientDomain != serverDomain) {
 		// A TGT can only be issued within a realm, and for referral tickets, srealm should be the realm where the ticket was issued
 		srealm = crealm
 	}
-	if strings.Contains(spn, "/") {
-		sname = types.NewPrincipalName(nametype.KRB_NT_SRV_INST, spn)
-	} else {
-		sname = types.NewPrincipalName(nametype.KRB_NT_PRINCIPAL, spn)
-	}
+	fmt.Printf("SPN: %s\n", spn)
+	sname := types.NewPrincipalName(snameType, spn)
 	var encType etype.EType
 	if signAes && len(signingKey) == 16 {
 		encType, err = crypto.GetEtype(etypeID.AES128_CTS_HMAC_SHA1_96)
