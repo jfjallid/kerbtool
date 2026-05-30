@@ -16,6 +16,38 @@ which specifies the KDC to contact for every domain along the way.
 In scenarios where tickets are requested via a SOCKS proxy, DNS traffic is
 forced to use TCP, but it is also recommended to specify a dns server to use.
 
+### NETBIOS vs DNS realm handling
+
+Active Directory tickets are sometimes issued (or stored in ccache files) with
+the realm set to the **NETBIOS** form of the domain (e.g. `CONTOSO`) rather
+than the **DNS** form (e.g. `CONTOSO.LOCAL`). Kerberos in general — and gokrb5
+in particular — treats realm strings as opaque, so a ticket whose realm is
+`CONTOSO` is not interchangeable with one whose realm is `CONTOSO.LOCAL`
+without explicit help.
+
+To make this more seamless, kerbtool does two things automatically:
+
+1. **Permissive realm comparison.** When deciding whether a loaded ccache
+   matches `--domain`, kerbtool treats the first DNS label of one form as the
+   NETBIOS form of the other (so `CONTOSO` ≈ `CONTOSO.LOCAL`).
+2. **NETBIOS realm alias in the generated krb5 config.** Unless you supply
+   `--krb5-conf`, kerbtool registers an additional realm pointing at the same
+   KDC under the NETBIOS form, plus a `[domain_realm]` mapping for the DNS
+   domain, so cross-realm referral resolution works either way.
+
+> **⚠️ This is a permissive heuristic and can be wrong.**
+> The default NETBIOS form is derived as *the first DNS label of `--domain`,
+> uppercased*. This holds for the vast majority of AD environments but is
+> not guaranteed by the protocol — NETBIOS names can be truncated, renamed,
+> or completely unrelated to the DNS domain. In such environments
+> `realmsMatch()` may return `true` for two realms that are actually
+> distinct, and the auto-registered alias may point at the wrong KDC.
+>
+> If you hit this case, pass `--netbios-domain <NAME>` to override the
+> default derivation, or supply your own `--krb5-conf` to take full control
+> of realm/KDC mapping. The flag does not disable the permissive comparison;
+> it only changes which NETBIOS name is treated as canonical.
+
 ## Credits
 This project had not been possible without the Kerberos library written by [jcmturner](https://github.com/jcmturner/gokrb5).
 
@@ -40,6 +72,8 @@ Usage: kerbtool <service> [options]
 General options:
   -P, --port <port>           Kerberos Port (default 88)
   -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
   -u, --user <username>       Username
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
@@ -65,6 +99,8 @@ Usage: kerbtool --ask-tgt [options]
 General options:
   -P, --port <port>           Kerberos Port (default 88)
   -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
   -u, --user <username>       Username
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
@@ -100,6 +136,8 @@ Usage: kerbtool --ask-st [options]
 General options:
   -P, --port <port>           Kerberos Port (default 88)
   -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
   -u, --user <username>       Username
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
@@ -138,6 +176,8 @@ Usage: kerbtool --forge [options]
 General options:
   -P, --port <port>           Kerberos Port (default 88)
   -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
   -u, --user <username>       Username
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
@@ -194,6 +234,8 @@ Usage: ./kerbtool --parse [options]
 General options:
   -P, --port <port>           Kerberos Port (default 88)
   -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
   -u, --user <username>       Username
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
@@ -225,6 +267,8 @@ Usage: kerbtool --kerberoast [options]
 General options:
   -P, --port <port>           Kerberos Port (default 88)
   -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
   -u, --user <username>       Username
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password

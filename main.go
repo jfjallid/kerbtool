@@ -78,6 +78,9 @@ var helpConnectionOptions = `
     General options:
       -P, --port <port>           Kerberos Port (default 88)
       -d, --domain <domain>       Domain name to use for login
+          --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                                  of --domain, uppercased). Use only when the NETBIOS name is not the
+                                  first label of the DNS domain (truncated/renamed/legacy environments).
       -u, --user <username>       Username
       -p, --pass <pass>           Password
           --hash <NT Hash>        Hex encoded NT Hash for user password
@@ -235,6 +238,13 @@ type connArgs struct {
 	password   string
 	hash       binaryArg
 	userDomain string
+	// netbiosDomain is the optional NETBIOS form of userDomain (e.g. "CONTOSO" when
+	// userDomain is "contoso.local"). Used to tolerate ccaches/TGTs that carry the
+	// NETBIOS form as the realm, and to register a NETBIOS realm alias in the
+	// generated krb5 config. See normalizeDomains() for default-derivation and
+	// realmsMatch() for the permissive comparison this enables.
+	netbiosDomain      string
+	netbiosDomainUpper string
 	socksHost  string
 	dcIP       string
 	dc         string // Hostname or ip
@@ -317,6 +327,7 @@ func addConnectionArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.Var(&argv.hash, "hash", "")
 	flagSet.StringVar(&argv.userDomain, "d", "", "")
 	flagSet.StringVar(&argv.userDomain, "domain", "", "")
+	flagSet.StringVar(&argv.netbiosDomain, "netbios-domain", "", "")
 	flagSet.IntVar(&argv.port, "P", 88, "")
 	flagSet.IntVar(&argv.port, "port", 88, "")
 	flagSet.BoolVar(&argv.debug, "debug", false, "")
@@ -508,6 +519,23 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 	return
 }
 
+// normalizeDomains fills in args.userDomainUpper / args.netbiosDomainUpper from
+// args.userDomain / args.netbiosDomain. Must be called before krbConf is built
+// (in main()) and before setupKRB5Client.
+//
+// The default NETBIOS form is derived as the first DNS label of --domain,
+// uppercased. This is correct for the vast majority of AD deployments but is
+// NOT guaranteed — the NETBIOS name can be truncated, renamed, or completely
+// unrelated to the DNS domain. Pass --netbios-domain explicitly when the
+// heuristic guesses wrong. See also realmsMatch() in this file.
+func normalizeDomains(args *userArgs) {
+	args.userDomainUpper = strings.ToUpper(args.userDomain)
+	if args.netbiosDomain == "" && args.userDomain != "" {
+		args.netbiosDomain = strings.SplitN(args.userDomain, ".", 2)[0]
+	}
+	args.netbiosDomainUpper = strings.ToUpper(args.netbiosDomain)
+}
+
 // parsedSPN decomposes an AD principal/SPN string into its components. The
 // raw string is always preserved and is what gets sent to the KDC verbatim;
 // the decomposed fields are only for derived purposes (filename templates,
@@ -579,6 +607,29 @@ func parseSPN(spn string) parsedSPN {
 	return p
 }
 
+// realmsMatch reports whether two realm strings refer to the same realm,
+// tolerating NETBIOS<->DNS form mismatch (e.g. "CONTOSO" vs "CONTOSO.LOCAL").
+//
+// PERMISSIVE / BEST-EFFORT: this treats the first DNS label as the implicit
+// NETBIOS form. This is wrong when the NETBIOS name is truncated, renamed, or
+// otherwise unrelated to the DNS domain — in such environments the comparison
+// can return true for two realms that are actually distinct. Users in those
+// environments should pass --netbios-domain explicitly; even then the helper
+// remains permissive (it's intentionally biased toward accepting tickets the
+// caller probably wants to use rather than rejecting them). See README for
+// caveats.
+func realmsMatch(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	if strings.EqualFold(a, b) {
+		return true
+	}
+	aFirst := strings.SplitN(a, ".", 2)[0]
+	bFirst := strings.SplitN(b, ".", 2)[0]
+	return strings.EqualFold(aFirst, b) || strings.EqualFold(a, bFirst)
+}
+
 func setupKRB5Client(args *userArgs) (err error) {
 	// AllowDomainSuffixRealmGuess(false): kerbtool always supplies an
 	// explicit dcDomain to GetServiceTicketExt, so gokrb5's suffix-strip
@@ -596,10 +647,16 @@ func setupKRB5Client(args *userArgs) (err error) {
 		myFlags.Usage()
 	}
 	if args.userDomain == "" {
-		fmt.Println("Must provid a user domain (--domain)")
+		fmt.Println("Must provide a user domain (--domain)")
 		myFlags.Usage()
 	}
-	args.userDomainUpper = strings.ToUpper(args.userDomain)
+	// normalizeDomains must run early: userDomainUpper is consumed by the
+	// NewWith* client constructors below regardless of realm resolution. The
+	// user-domain fallback for dcDomain itself is deferred to the end of this
+	// function so the more-specific derivations (--target-realm, --ask-referral,
+	// foreign b64 TGT) get first chance to set it. See the fallback near the
+	// bottom of setupKRB5Client.
+	normalizeDomains(args)
 
 	// Validate format
 	if isFlagSet("dns-host") {
@@ -770,7 +827,11 @@ func setupKRB5Client(args *userArgs) (err error) {
 				// Check if we have a referral ticket for the target domain
 				_, _, err = args.c.GetTGT(target[1])
 			} else {
-				_, _, err = args.c.GetTGT(strings.ToUpper(args.userDomain))
+				// Use whatever realm form the client/ccache was actually loaded
+				// with (DNS or NETBIOS). gokrb5's session map is keyed on the
+				// literal realm string of the stored TGT, so asking for a
+				// different form here would miss the session.
+				_, _, err = args.c.GetTGT(args.c.Credentials.Realm())
 			}
 			if err != nil {
 				// Found no usable TGT
@@ -903,6 +964,12 @@ func main() {
 		return
 	}
 
+	// Compute userDomainUpper + netbiosDomain(Upper) up front so the ccache
+	// acceptance check below and the krbConf builder further down can both rely
+	// on them. setupKRB5Client also calls this (idempotent) for the paths that
+	// reach it without going through main().
+	normalizeDomains(args)
+
 	args.ccacheFile = os.Getenv("KRB5CCNAME")
 
 	if args.ccacheFile != "" {
@@ -924,7 +991,14 @@ func main() {
 			}
 		}
 		if isFlagSet("domain") && args.cache != nil {
-			if !strings.EqualFold(args.userDomain, args.cache.GetClientRealm()) {
+			// Pre-client check: krbConf and the gokrb5 alias table don't exist
+			// yet at this point, so use the local realmsMatch heuristic. It is
+			// strictly more permissive than the alias-aware comparison the
+			// rest of the codebase uses post-construction, which is the right
+			// bias for ccache acceptance — anything the alias table would
+			// accept later, realmsMatch also accepts.
+			cacheRealm := args.cache.GetClientRealm()
+			if !realmsMatch(args.userDomain, cacheRealm) && !realmsMatch(args.netbiosDomain, cacheRealm) {
 				log.Infoln("Tickets in CCACHE are for another domain so will not be used")
 				args.cache = nil
 			}
