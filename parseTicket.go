@@ -278,7 +278,7 @@ func inspectKerbValidationInfo(k *pac.KerbValidationInfo) {
 	fmt.Printf("ResourceGroupIDs: %+v\n", k.ResourceGroupIDs)
 }
 
-func getPac(ad *types.AuthorizationData, decryptionKey types.EncryptionKey) (p *pac.PACType, err error) {
+func getPac(ad *types.AuthorizationData, decryptionKey types.EncryptionKey, verifyChecksum bool) (p *pac.PACType, err error) {
 	p = &pac.PACType{}
 	for _, ad2 := range *ad {
 		if ad2.ADType == adtype.ADIfRelevant {
@@ -292,13 +292,10 @@ func getPac(ad *types.AuthorizationData, decryptionKey types.EncryptionKey) (p *
 				if err != nil {
 					return
 				}
-				err = p.ProcessPACInfoBuffers(decryptionKey, log.Logger(), true)
+				err = p.ProcessPACInfoBuffers(decryptionKey, log.Logger(), verifyChecksum)
 				if err != nil {
 					return
 				}
-				p.Buffers = nil
-				p.Data = nil
-				p.ZeroSigData = nil
 				return
 			}
 		} else {

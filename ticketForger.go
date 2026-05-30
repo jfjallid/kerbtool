@@ -221,7 +221,7 @@ func forgeTicket(args *userArgs) (ticket messages.Ticket, decryptedEncPart messa
 				log.Errorln(err)
 				return
 			}
-			ourPac, err = getPac(&st.DecryptedEncPart.AuthorizationData, sessionKey)
+			ourPac, err = getPac(&st.DecryptedEncPart.AuthorizationData, sessionKey, true)
 			if err != nil {
 				log.Errorf("Failed to extract the PAC")
 				return
@@ -292,7 +292,7 @@ func forgeTicket(args *userArgs) (ticket messages.Ticket, decryptedEncPart messa
 			templateTicket.DecryptedEncPart.Flags = st.DecryptedEncPart.Flags
 		} else {
 			// Retrieve PAC from template ticket
-			ourPac, err = getPac(&templateTicket.DecryptedEncPart.AuthorizationData, decryptionKey)
+			ourPac, err = getPac(&templateTicket.DecryptedEncPart.AuthorizationData, decryptionKey, true)
 			if err != nil {
 				log.Errorf("Failed to extract the PAC")
 				return
