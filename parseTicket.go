@@ -140,13 +140,11 @@ func handleParseTicket(args *userArgs) (err error) {
 
 func inspectTicketBytes(cipher []byte, key []byte, isAesKey bool) (err error) {
 	var ticket = &messages.Ticket{}
-	ticket.Unmarshal(cipher)
-	// Maybe below is needed for some cases?
-	//_, err = asn1.Unmarshal(cipher, ticket)
-	//if err != nil {
-	//	log.Errorln(err)
-	//	return
-	//}
+	err = ticket.Unmarshal(cipher)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
 	err = inspectTicket(ticket, key, isAesKey)
 	if err != nil {
 		log.Errorln(err)
@@ -173,7 +171,6 @@ func inspectDecryptedTicket(ticket *messages.Ticket, decryptionKey types.Encrypt
 	fmt.Println("Ticket encrypted part:")
 	fmt.Printf("  Flags: %v\n", ticketFlags)
 	fmt.Printf("  CRealm: %s\n", ticket.DecryptedEncPart.CRealm)
-	fmt.Printf("  CName: %s\n", ticket.DecryptedEncPart.CName.PrincipalNameString())
 	fmt.Printf("  CName: (type: %d, name: %s)\n", ticket.DecryptedEncPart.CName.NameType, ticket.DecryptedEncPart.CName.PrincipalNameString())
 	fmt.Printf("  AuthTime: %s\n", ticket.DecryptedEncPart.AuthTime)
 	fmt.Printf("  StartTime: %s\n", ticket.DecryptedEncPart.StartTime)
@@ -272,7 +269,14 @@ func inspectKerbValidationInfo(k *pac.KerbValidationInfo) {
 	fmt.Printf("LastFailedILogon: %s\n", k.LastFailedILogon.Time())
 	fmt.Printf("FailedILogonCount: %d\n", k.FailedILogonCount)
 	fmt.Printf("SIDCount: %d\n", k.SIDCount)
-	fmt.Printf("ExtraSIDs: %+v\n", k.ExtraSIDs)
+	if len(k.ExtraSIDs) == 0 {
+		fmt.Println("ExtraSIDs: []")
+	} else {
+		fmt.Println("ExtraSIDs:")
+		for _, s := range k.ExtraSIDs {
+			fmt.Printf("  - SID: %s, Attributes: %d\n", s.SID.String(), s.Attributes)
+		}
+	}
 	fmt.Printf("ResourceGroupDomainSID: %+v\n", k.ResourceGroupDomainSID)
 	fmt.Printf("ResourceGroupCount: %d\n", k.ResourceGroupCount)
 	fmt.Printf("ResourceGroupIDs: %+v\n", k.ResourceGroupIDs)
@@ -328,6 +332,7 @@ func decryptTicket(ticket *messages.Ticket, key []byte, isAesKey bool) (decrypti
 	case etypeID.AES256_CTS_HMAC_SHA1_96:
 		ticketEtype = "AES256_CTS_HMAC_SHA1_96"
 	default:
+		log.Errorf("ticket EType: (0x%x) %d\n", ticketEid, ticketEid)
 		ticketEtype = "UNKNOWN"
 	}
 	var eid int32

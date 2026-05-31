@@ -54,7 +54,7 @@ import (
 )
 
 var log = golog.Get("")
-var release string = "0.1.2"
+var release string = "0.2.1"
 var myFlags *flag.FlagSet
 
 var helpMsg = `
@@ -117,8 +117,8 @@ func (n *ridList) String() string {
 
 func (n *ridList) Set(value string) error {
 	parts := strings.Split(value, ",")
-	for i, _ := range parts {
-		str := strings.TrimSpace(parts[i])
+	for _, str := range parts {
+		str = strings.TrimSpace(str)
 		if strings.Contains(str, " ") {
 			return fmt.Errorf("Rids should be separated by comma, not by space.")
 		}
@@ -140,8 +140,8 @@ func (n *stringList) String() string {
 
 func (n *stringList) Set(value string) error {
 	parts := strings.Split(value, ",")
-	for i, _ := range parts {
-		str := strings.TrimSpace(parts[i])
+	for _, str := range parts {
+		str = strings.TrimSpace(str)
 		if strings.Contains(str, " ") {
 			return fmt.Errorf("List of strings should be separated by comma, not by space.")
 		}

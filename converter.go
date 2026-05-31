@@ -46,7 +46,7 @@ var helpConvertTicketOptions = `
 
 func handleConvertTicket(args *userArgs) (err error) {
 	if args.inputFilename != "" && args.ticketB64 != "" {
-		fmt.Println("Arguments --in and --ticket are mutually excusive. Choose ONE")
+		fmt.Println("Arguments --in and --ticket are mutually exclusive. Choose ONE")
 		myFlags.Usage()
 	}
 	if args.inputFilename == "" && args.ticketB64 == "" {

