@@ -294,3 +294,37 @@ func fromKirbi(data []byte) (c *credentials.Credential, err error) {
 	}
 	return
 }
+
+func b64ToCCache(s string) (c *credentials.Credential, err error) {
+	input, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
+	switch input[0] {
+	case 0x76:
+		// Kirbi
+		c, err = fromKirbi(input)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+	case 0x5:
+		// CCACHE
+		cache := new(credentials.CCache)
+		err = cache.Unmarshal(input)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+		entries := cache.GetEntries()
+		if len(entries) < 1 {
+			return nil, fmt.Errorf("CCACHE is empty!")
+		}
+		if len(entries) > 1 {
+			log.Notice("CCACHE contains multiple tickets. Only first one is used")
+		}
+		c = entries[0]
+	}
+	return
+}

@@ -308,7 +308,10 @@ type userArgs struct {
 	inputFilename  string
 	outputFilename string
 	ticketB64      string
-	dumpAllTickets bool
+	dumpAllTickets      bool
+	targetRealm         string
+	u2u                 bool
+	additionalTicketFile string
 	unpacHash           bool
 	// Non-user arguments
 	serviceDomain   string
@@ -380,6 +383,11 @@ func addAskSTArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.StringVar(&argv.impersonate, "impersonate", "", "")
 	flagSet.StringVar(&argv.altService, "alt-service", "", "")
 	flagSet.BoolVar(&argv.dumpAllTickets, "dump-all", false, "")
+	flagSet.StringVar(&argv.ticketB64, "ticket", "", "")
+	flagSet.BoolVar(&argv.referral, "ask-referral", false, "")
+	flagSet.StringVar(&argv.targetRealm, "target-realm", "", "")
+	flagSet.BoolVar(&argv.u2u, "u2u", false, "")
+	flagSet.StringVar(&argv.additionalTicketFile, "additional-ticket", "", "")
 }
 
 func addForgeArgs(flagSet *flag.FlagSet, argv *userArgs) {
@@ -759,34 +767,63 @@ func setupKRB5Client(args *userArgs) (err error) {
 	}
 
 	if args.spn == "" && (args.askST || args.kerberoast) {
-		return fmt.Errorf("Must specify an SPN when requesting a service ticket or kerberoasting")
+		// S4U2Self+U2U doesn't need an SPN (targets the requesting user's principal)
+		if !(args.askST && args.u2u && args.impersonate != "") {
+			return fmt.Errorf("Must specify an SPN when requesting a service ticket or kerberoasting")
+		}
+	}
+
+	// If --target-realm is explicitly set, it takes priority for dcDomain and referral target
+	if args.targetRealm != "" {
+		args.dcDomain = strings.ToUpper(args.targetRealm)
+		args.referral = true
 	}
 
 	var target []string
 	if args.spn != "" {
-		if args.referral {
-			// Is this always krbtgt?
+		if args.targetRealm != "" {
+			// Explicit target realm specified — use it directly
+			target = []string{"krbtgt", strings.ToUpper(args.targetRealm)}
+			log.Infof("Using explicit target realm: %s\n", args.targetRealm)
+		} else if args.referral {
+			// Legacy --ask-referral behavior: derive realm from --dc hostname,
+			// SPN's DNS suffix, or a UPN's @-suffix. NetBIOS-only SPNs and bare
+			// sAMAccountNames carry no realm hint — those callers must pass
+			// --target-realm explicitly (or use --dc with an FQDN).
 			if args.dcHost != "" {
 				parts := strings.SplitN(args.dcHost, ".", 2)
 				if len(parts) > 1 && !strings.EqualFold(parts[1], args.userDomain) {
-					// Look for a referral ticket for the Domain controller's domain
 					target = []string{"krbtgt", strings.ToUpper(parts[1])}
 				}
-				args.dcDomain = strings.ToUpper(parts[1]) // is this correct?
+				args.dcDomain = strings.ToUpper(parts[1])
+			}
+			if target == nil && args.serviceDomain != "" {
+				target = []string{"krbtgt", strings.ToUpper(args.serviceDomain)}
 			}
 			if target == nil {
-				target = []string{"krbtgt", strings.ToUpper(args.serviceDomain)}
+				ps := parseSPN(args.spn)
+				if ps.upnRealm != "" && !strings.EqualFold(ps.upnRealm, args.userDomain) {
+					target = []string{"krbtgt", strings.ToUpper(ps.upnRealm)}
+				}
 			}
 			log.Infof("referral target: %v\n", target)
 		} else {
-			target = []string{args.service, args.serviceHost + "." + args.serviceDomain}
+			// Non-referral: construct target for CCACHE lookup if SPN components are available
+			if args.service != "" {
+				if args.serviceDomain != "" {
+					target = []string{args.service, args.serviceHost + "." + args.serviceDomain}
+				} else if args.serviceHost != "" {
+					target = []string{args.service, args.serviceHost}
+				}
+			}
+			// If target is nil (e.g., SPN without "/"), NewFromCCache will still load TGTs
 		}
 	}
 
 	/* If password is specified with --pass flag, use it to logon and then add potential ccache entries.
 	If no pass is specified. Try to use potential ccache entries, otherwise fail later
 	*/
-	if (args.password == "") && (args.hash == nil) && (args.aesKey == nil) {
+	if (args.password == "") && (args.hash == nil) && (args.aesKey == nil) && (args.pfxFile == "") {
 		if !args.noPass {
 			var passBytes []byte
 			fmt.Printf("Enter password: ")
@@ -826,19 +863,62 @@ func setupKRB5Client(args *userArgs) (err error) {
 		}
 	}
 
-	if args.cache != nil {
-		if args.c == nil {
-			log.Debugf("Looking for ccache ticket for %v\n", target)
-			// When requesting a ServiceTicket, we want to use any available TGT from the CCACHE
-			args.c, err = client.NewFromCCache(args.cache, target, args.krbConf, settings...)
+	if args.c == nil && args.cache == nil {
+		if args.ticketB64 != "" {
+			var cred *credentials.Credential
+			cred, err = b64ToCCache(args.ticketB64)
 			if err != nil {
-				log.Errorf("Tried to create kerberos client from ccache but failed with error: %s\n", err)
-				err = fmt.Errorf("Found no useable credentials and no ccache entries to use")
+				log.Errorln(err)
 				return
 			}
+			args.c, err = client.NewFromTicket(cred, args.krbConf, settings...)
+			if err != nil {
+				log.Errorf("Failed to create kerberos client from provided ticket: %s", err.Error())
+			}
 		}
-		// Check that principal name matches
-		if args.cache.DefaultPrincipal.PrincipalName.Equal(args.c.Credentials.CName()) && args.cache.DefaultPrincipal.Realm == args.c.Credentials.Realm() {
+	}
+
+	if args.cache != nil {
+		if args.c == nil {
+			if args.ticketB64 != "" {
+				var cred *credentials.Credential
+				cred, err = b64ToCCache(args.ticketB64)
+				if err != nil {
+					log.Errorln(err)
+					return
+				}
+				args.c, err = client.NewFromTicket(cred, args.krbConf, settings...)
+				if err != nil {
+					log.Errorf("Failed to create kerberos client from provided ticket: %s", err.Error())
+				}
+			} else {
+				log.Debugf("Looking for ccache ticket for %v\n", target)
+				// When requesting a ServiceTicket, we want to use any available TGT from the CCACHE
+				args.c, err = client.NewFromCCache(args.cache, target, args.krbConf, settings...)
+				if err != nil {
+					log.Errorf("Tried to create kerberos client from ccache but failed with error: %s\n", err)
+					err = fmt.Errorf("Found no useable credentials and no ccache entries to use")
+					return
+				}
+			}
+		} else if args.ticketB64 != "" {
+				var cred *credentials.Credential
+				cred, err = b64ToCCache(args.ticketB64)
+				if err != nil {
+					log.Errorln(err)
+					return
+				}
+				err = args.c.AddTicketToSession(cred, "")
+				if err != nil {
+					log.Errorln(err)
+					return
+				}
+		}
+		// Check that principal name matches. Realm comparison is alias-aware
+		// via the client's runtime alias table, which was seeded from
+		// krbConf.RealmAliases at construction time and may be extended by
+		// NewFromCCacheWithFallbacks when a krbtgt entry differs in form.
+		if args.cache.DefaultPrincipal.PrincipalName.Equal(args.c.Credentials.CName()) && args.c.IsSameRealm(args.cache.DefaultPrincipal.Realm, args.c.Credentials.Realm()) {
 			log.Infoln("Adding ccache entries to client")
 			// Only need to add old ccache entries if we could not create a client from the old ccache
 			args.c.AddCacheEntries(args.cache)
@@ -847,7 +927,7 @@ func setupKRB5Client(args *userArgs) (err error) {
 			args.cache = nil
 		}
 
-		if args.askST {
+		if args.askST && args.ticketB64 == "" {
 			/*
 				When requesting a service ticket, we could either use a cached TGT, a referral ticket for the appropriate domain or provided credentials
 			*/
@@ -867,10 +947,24 @@ func setupKRB5Client(args *userArgs) (err error) {
 			}
 		}
 	}
-
 	if args.c == nil {
 		err = fmt.Errorf("Found no useable credentials and no ccache entries to use")
 		return
+	}
+
+	// Resolve the default target realm now that --target-realm / --ask-referral
+	// and any supplied b64 TGT have had their chance to set dcDomain. Order
+	// matters: a foreign b64 ticket's own realm takes precedence over the
+	// user-domain fallback (edge case: requesting a ticket for a foreign domain
+	// from an on-prem DC).
+	if args.dcDomain == "" && args.ticketB64 != "" {
+		args.dcDomain = args.c.Credentials.Realm()
+	}
+	if args.dcDomain == "" {
+		// In the common single-domain case, request the ticket in the user's
+		// own realm. AD realms are uppercase and case-sensitive on the wire;
+		// session-cache lookups are case-insensitive via CanonicalRealm.
+		args.dcDomain = args.userDomainUpper
 	}
 
 	return
@@ -1059,22 +1153,54 @@ func main() {
 		defer f.Close()
 		args.krbConf, err = config.NewFromReader(f)
 		if err != nil {
-			log.Errorf("error paring krb5 conf: %s\n", err)
+			log.Errorf("error parsing krb5 conf: %s\n", err)
 			return
 		}
 	} else {
 		args.krbConf = config.New()
 		args.krbConf.LibDefaults.DNSLookupKDC = true
 		args.krbConf.LibDefaults.DefaultRealm = strings.ToUpper(args.userDomain)
-		args.krbConf.Realms = append(args.krbConf.Realms, config.Realm{Realm: strings.ToUpper(args.userDomain), KDC: []string{dcTarget}}) // or should KDC be empty to trigger lookup?
+		// When --dc is specified but --target-realm points to a different realm,
+		// the explicit --dc is for the target realm, not the user's home realm.
+		// Use the user domain for DNS-based KDC lookup instead.
+		userRealmKDC := dcTarget
+		if args.targetRealm != "" && args.dc != "" && !strings.EqualFold(args.targetRealm, args.userDomain) {
+			userRealmKDC = fmt.Sprintf("%s:%d", args.userDomain, args.port)
+		}
+		args.krbConf.Realms = append(args.krbConf.Realms, config.Realm{Realm: strings.ToUpper(args.userDomain), KDC: []string{userRealmKDC}})
+		// Register a NETBIOS realm alias pointing to the same KDC, so tickets
+		// whose realm is the NETBIOS form (e.g. "CONTOSO" instead of
+		// "CONTOSO.LOCAL") can still be resolved/used. The default NETBIOS form
+		// is derived from the first DNS label and may be wrong in environments
+		// where the NETBIOS name was truncated or renamed — use
+		// --netbios-domain to override. Only applied when we built krbConf
+		// ourselves; a user-supplied --krb5-conf is left untouched.
+		if args.netbiosDomainUpper != "" && !strings.EqualFold(args.netbiosDomainUpper, args.userDomainUpper) {
+			log.Infof("Registering NETBIOS realm alias %s -> KDC %s\n", args.netbiosDomainUpper, userRealmKDC)
+			args.krbConf.Realms = append(args.krbConf.Realms, config.Realm{Realm: args.netbiosDomainUpper, KDC: []string{userRealmKDC}})
+			if args.krbConf.DomainRealm == nil {
+				args.krbConf.DomainRealm = config.DomainRealm{}
+			}
+			// Seed [domain_realm] so ResolveRealm() maps the DNS domain to its
+			// canonical (DNS) realm form, keeping NETBIOS strictly as an alias.
+			args.krbConf.DomainRealm["."+strings.ToLower(args.userDomain)] = args.userDomainUpper
+			args.krbConf.DomainRealm[strings.ToLower(args.userDomain)] = args.userDomainUpper
+			// Register the pair in gokrb5's alias table so its alias-aware
+			// session map treats the two forms as one realm. The Client
+			// constructor copies a snapshot of RealmAliases into its own
+			// per-client table, so this must run before setupKRB5Client.
+			if args.krbConf.RealmAliases != nil {
+				args.krbConf.RealmAliases.Add(args.netbiosDomainUpper, args.userDomainUpper)
+			}
+		}
 		args.krbConf.LibDefaults.Forwardable = true
 		if !isFlagSet("duration") {
 			args.ticketDuration = time.Hour * 10
 		}
 		args.krbConf.LibDefaults.RenewLifetime = args.ticketDuration
 		args.krbConf.LibDefaults.TicketLifetime = args.ticketDuration
-		args.krbConf.LibDefaults.DefaultTGSEnctypeIDs = []int32{etypeID.AES256_CTS_HMAC_SHA1_96, etypeID.AES128_CTS_HMAC_SHA1_96, etypeID.RC4_HMAC}
-		args.krbConf.LibDefaults.DefaultTktEnctypeIDs = []int32{etypeID.AES256_CTS_HMAC_SHA1_96, etypeID.AES128_CTS_HMAC_SHA1_96, etypeID.RC4_HMAC}
+		args.krbConf.LibDefaults.DefaultTGSEnctypeIDs = []int32{etypeID.AES256_CTS_HMAC_SHA384_192, etypeID.AES128_CTS_HMAC_SHA256_128, etypeID.AES256_CTS_HMAC_SHA1_96, etypeID.AES128_CTS_HMAC_SHA1_96, etypeID.RC4_HMAC}
+		args.krbConf.LibDefaults.DefaultTktEnctypeIDs = []int32{etypeID.AES256_CTS_HMAC_SHA384_192, etypeID.AES128_CTS_HMAC_SHA256_128, etypeID.AES256_CTS_HMAC_SHA1_96, etypeID.AES128_CTS_HMAC_SHA1_96, etypeID.RC4_HMAC}
 		types.UnsetFlag(&args.krbConf.LibDefaults.KDCDefaultOptions, flags.RenewableOK) //TODO Remove?
 		// Determine if DC and userdomain are same realm
 		if args.dcHost != "" {
@@ -1094,6 +1220,16 @@ func main() {
 	if args.requestRC4 {
 		args.krbConf.LibDefaults.DefaultTGSEnctypeIDs = []int32{etypeID.RC4_HMAC}
 		args.krbConf.LibDefaults.DefaultTktEnctypeIDs = []int32{etypeID.RC4_HMAC}
+	} else if args.hash != nil {
+		// NT hash can only derive RC4 keys. If the AS-REQ advertises AES256,
+		// a KDC may encrypt the AS-REP with AES256 (especially for accounts
+		// with DoesNotRequirePreAuth where no pre-auth hints the etype).
+		// Restrict both ticket and TGS etypes to RC4 so the response is
+		// decryptable on every leg of the handshake; the SHA-2 entries now
+		// in the default TGS list would otherwise leave room for the KDC to
+		// pick an enctype we cannot key.
+		args.krbConf.LibDefaults.DefaultTktEnctypeIDs = []int32{etypeID.RC4_HMAC}
+		args.krbConf.LibDefaults.DefaultTGSEnctypeIDs = []int32{etypeID.RC4_HMAC}
 	}
 
 	if args.spn != "" {
@@ -1113,6 +1249,27 @@ func main() {
 	} else {
 		args.serviceNameType = nametype.KRB_NT_ENTERPRISE
 	}
+
+	// When --target-realm is set with a --dc, add the realm to the kerberos config
+	if args.targetRealm != "" && args.dcHost != "" {
+		targetRealmUpper := strings.ToUpper(args.targetRealm)
+		if !strings.EqualFold(targetRealmUpper, args.userDomainUpper) {
+			log.Infof("Adding kerberos realm to config for target realm: %s and KDC: %s\n", targetRealmUpper, args.dcHost)
+			args.krbConf.Realms = append(args.krbConf.Realms, config.Realm{Realm: targetRealmUpper, KDC: []string{args.dcHost + ":88"}})
+			// Also register a NETBIOS alias for the target realm pointing at
+			// the same KDC, using the first-DNS-label heuristic (see
+			// realmsMatch() caveats). There is no per-target-realm override
+			// flag; users who hit a mismatch here can supply a full
+			// --krb5-conf instead.
+			if strings.Contains(targetRealmUpper, ".") {
+				targetNB := strings.SplitN(targetRealmUpper, ".", 2)[0]
+				if !strings.EqualFold(targetNB, targetRealmUpper) {
+					log.Infof("Registering NETBIOS realm alias %s -> KDC %s for target realm\n", targetNB, args.dcHost)
+					args.krbConf.Realms = append(args.krbConf.Realms, config.Realm{Realm: targetNB, KDC: []string{args.dcHost + ":88"}})
+					if args.krbConf.RealmAliases != nil {
+						args.krbConf.RealmAliases.Add(targetNB, targetRealmUpper)
+					}
+				}
 			}
 		}
 	}
