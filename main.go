@@ -67,11 +67,13 @@ var helpMsg = `
           --parse               Decrypt and inspect a provided ticket
           --convert             Convert between CCACHE and KIRBI formats
           --kerberoast          Kerberoast specific account based on SPN
+          --asreproast          AS-REP roast specific account that does not require pre-auth
       ` + helpConnectionOptions + `
 `
 var helpGeneralOptions = `
           --debug                 Enable debug logging
           --verbose               Enable verbose logging
+      -q, --quiet                 Reduce amount of output
       -v, --version               Show version
 `
 var helpConnectionOptions = `
@@ -274,12 +276,14 @@ type generalArgs struct {
 	debug      bool
 	version    bool
 	verbose    bool
+	quiet      bool
 	askTGT     bool
 	askST      bool
 	forge      bool
 	parse      bool
 	convert    bool
 	kerberoast bool
+	asRepRoast bool
 }
 
 type userArgs struct {
@@ -327,6 +331,7 @@ type userArgs struct {
 	signAes         bool
 	userDomainUpper string
 	ccacheFile      string // KRB5CCACHE filename
+	noLogin			bool // When we want to handle login manually
 }
 
 func addConnectionArgs(flagSet *flag.FlagSet, argv *userArgs) {
@@ -357,6 +362,8 @@ func addConnectionArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.BoolVar(&argv.dnsTCP, "dns-tcp", false, "")
 	flagSet.BoolVar(&argv.noPass, "n", false, "")
 	flagSet.BoolVar(&argv.noPass, "no-pass", false, "")
+	flagSet.BoolVar(&argv.quiet, "quiet", false, "")
+	flagSet.BoolVar(&argv.quiet, "q", false, "")
 }
 
 func addAskTGTArgs(flagSet *flag.FlagSet, argv *userArgs) {
@@ -424,9 +431,14 @@ func addConvertTicketArgs(flagSet *flag.FlagSet, argv *userArgs) {
 }
 
 func addKerberoastArgs(flagSet *flag.FlagSet, argv *userArgs) {
-	flagSet.StringVar(&argv.spn, "spn", "", "")
+	flagSet.StringVar(&argv.spn, "target", "", "")
 	flagSet.StringVar(&argv.krb5ConfFile, "krb5-conf", "", "")
-	flagSet.StringVar(&argv.targetUsername, "target", "", "")
+	flagSet.StringVar(&argv.targetUsername, "name", "user", "")
+}
+
+func addASREProastArgs(flagSet *flag.FlagSet, argv *userArgs) {
+	flagSet.StringVar(&argv.username, "target", "", "")
+	flagSet.StringVar(&argv.krb5ConfFile, "krb5-conf", "", "")
 }
 
 func handleArgs() (action byte, argv *userArgs, err error) {
@@ -442,6 +454,7 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 	myFlags.BoolVar(&argv.parse, "parse", false, "")
 	myFlags.BoolVar(&argv.convert, "convert", false, "")
 	myFlags.BoolVar(&argv.kerberoast, "kerberoast", false, "")
+	myFlags.BoolVar(&argv.asRepRoast, "asreproast", false, "")
 	myFlags.BoolVar(&argv.version, "v", false, "")
 	myFlags.BoolVar(&argv.version, "version", false, "")
 
@@ -476,6 +489,9 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 		numAction++
 	}
 	if argv.kerberoast {
+		numAction++
+	}
+	if argv.asRepRoast {
 		numAction++
 	}
 	if numAction != 1 {
@@ -524,6 +540,13 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 		}
 		addKerberoastArgs(myFlags, argv)
 		action = 6
+	} else if argv.asRepRoast {
+		myFlags.Usage = func() {
+			fmt.Println(helpASRepRoastOptions)
+			os.Exit(0)
+		}
+		addASREProastArgs(myFlags, argv)
+		action = 7
 	}
 
 	if !argv.convert && !argv.parse {
@@ -855,7 +878,7 @@ func setupKRB5Client(args *userArgs) (err error) {
 		args.c, _ = client.NewWithPassword(args.username, args.userDomainUpper, args.password, args.krbConf, settings...)
 		log.Infoln("Authenticated using password!")
 	}
-	if args.c != nil {
+	if args.c != nil && !args.noLogin{
 		err = args.c.Login()
 		if err != nil {
 			log.Errorf("Login failed: %s\n", err)
@@ -1273,8 +1296,14 @@ func main() {
 			}
 		}
 	}
+	if args.asRepRoast {
+		args.noLogin = true
+		if args.password == "" {
+			args.password = "Fake Password" // Hack to allow client to initialize
+		}
+	}
 
-	if args.askTGT || args.askST || args.request || args.kerberoast {
+	if args.askTGT || args.askST || args.request || args.kerberoast || args.asRepRoast {
 		err = setupKRB5Client(args)
 		if err != nil {
 			log.Errorln(err)
@@ -1316,6 +1345,12 @@ func main() {
 		}
 	case 6:
 		err = handleKerberoast(args)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+	case 7:
+		err = handleASReperoast(args)
 		if err != nil {
 			log.Errorln(err)
 			return

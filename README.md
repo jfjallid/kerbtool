@@ -52,7 +52,7 @@ To make this more seamless, kerbtool does two things automatically:
 This project had not been possible without the Kerberos library written by [jcmturner](https://github.com/jcmturner/gokrb5).
 
 Much of the code has been inspired by Impacket's getST.py, getTGT.py,
-ticketConverter.py and ticketer.py.
+ticketConverter.py, GetUserSPNs.py, GetNPUsers.py, and ticketer.py.
 
 ## Contributions
 Issues and/or pull requests regarding problems or new features are welcome!
@@ -68,6 +68,7 @@ Usage: kerbtool <service> [options]
       --parse               Decrypt and inspect a provided ticket
       --convert             Convert between CCACHE and KIRBI formats
       --kerberoast          Kerberoast specific account based on SPN
+      --asreproast          AS-REP roast specific account that does not require pre-auth
   
 General options:
   -P, --port <port>           Kerberos Port (default 88)
@@ -287,10 +288,39 @@ General options:
 
 
 options:
-      --spn <SPN>             SPN used to request or forge a service ticket of format "service/FQDN"
-      --target <username>     Target username to request service ticket for
+      --target <SPN|SAN|UPN>  Target to kerberoast. Supports multiple formats such as service/fqdn, sAMAccountName and UPN."
+      --name <username>       Target username for output hash (default user)
       --krb5-conf <file>      Read krb5.conf file and use as config
-      --request-rc4           Ask for RC4 encrypted encPart of KDC REP, not the actual ticket (default false)
+```
+### AS Reproast specific usage
+```
+Usage: ./kerbtool --asreproast [options]
+
+General options:
+  -P, --port <port>           Kerberos Port (default 88)
+  -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
+  -u, --user <username>       Username
+  -p, --pass <pass>           Password
+      --hash <NT Hash>        Hex encoded NT Hash for user password
+  -n, --no-pass               Do not prompt for password
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
+      --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --socks-host <target>   Establish connection via a SOCKS5 proxy server
+      --socks-port <port>     SOCKS5 proxy port (default 1080)
+      --dns-host <ip:port>    Override system's default DNS resolver
+      --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
+  -t, --timeout               Dial timeout in seconds (default 5)
+
+      --debug                 Enable debug logging
+      --verbose               Enable verbose logging
+  -v, --version               Show version
+
+
+options:
+      --target <username>     Target user to AS-REP Roast. Supports multiple formats"
+      --krb5-conf <file>      Read krb5.conf file and use as config
 ```
 
 ## AskTGT
@@ -458,6 +488,29 @@ RODCIdentifier: 0
 
 ```
 ## Kerberoast
-TODO
+Limited support for  Kerberoasting as there is no LDAP support to figure out which accounts can be targeted.
+Currently it is supported to target a single user to request a service ticket and extract the hash for cracking.
+Multiple formats for the username are supported according to principal name type NT-ENTERPRISE:
+```
+./kerbtool --kerberoast -u Administrator -d skynet-ops.corp --target malcolm
+```
+```
+./kerbtool --kerberoast -u Administrator -d skynet-ops.corp --target malcolm@skynet-ops.corp
+```
+```
+./kerbtool --kerberoast -u Administrator -d skynet-ops.corp --target skynet-ops\\malcolm
+```
 
-Currently only implemented in a limited form as a test.
+## AS-Rep roast
+Limited support for AS-REP roasting as there is no LDAP support to figure out which accounts can be targeted.
+Currently it is supported to target a single user to request a TGT and extract the hash for cracking.
+Multiple formats for the username are supported according to principal name type NT-ENTERPRISE:
+```
+./kerbtool --asreproast -d skynet-ops.corp --target tpol
+```
+```
+./kerbtool --asreproast -d skynet-ops.corp --target tpol@skynet-ops.corp
+```
+```
+./kerbtool --asreproast -d skynet-ops.corp --target skynet-ops\\tpol
+```
