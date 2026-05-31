@@ -164,6 +164,10 @@ func doS4U2Proxy(c *client.Client, conf *config.Config, username, userDomain str
 	}
 
 	tgsReq, err := messages.NewS4UTGSReq(types.NewPrincipalName(nametype.KRB_NT_PRINCIPAL, impersonate), types.NewPrincipalName(nametype.KRB_NT_SRV_INST, spn), tgt.Realm, conf)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
 	tgsReq.PAData = types.PADataSequence{
 		types.PAData{
 			PADataType:  patype.PA_TGS_REQ,
@@ -198,6 +202,28 @@ func doS4U2Proxy(c *client.Client, conf *config.Config, username, userDomain str
 	return
 }
 
+// paForUserChksumType returns the PA-FOR-USER checksum type that matches the
+// TGT session key's enctype family. Post CVE-2025-60704 (I think) KDCs verify the
+// checksum using an algorithm derived from the session key, ignoring the
+// declared cksumtype, so the two must agree or the KDC returns
+// KRB_AP_ERR_MODIFIED.
+func paForUserChksumType(k types.EncryptionKey) (int32, error) {
+	switch k.KeyType {
+	case etypeID.AES256_CTS_HMAC_SHA1_96:
+		return chksumtype.HMAC_SHA1_96_AES256, nil
+	case etypeID.AES128_CTS_HMAC_SHA1_96:
+		return chksumtype.HMAC_SHA1_96_AES128, nil
+	case etypeID.AES256_CTS_HMAC_SHA384_192:
+		return chksumtype.HMAC_SHA384_192_AES256, nil
+	case etypeID.AES128_CTS_HMAC_SHA256_128:
+		return chksumtype.HMAC_SHA256_128_AES128, nil
+	case etypeID.RC4_HMAC:
+		return chksumtype.KERB_CHECKSUM_HMAC_MD5, nil
+	default:
+		return 0, fmt.Errorf("unsupported session key enctype %d for PA-FOR-USER checksum", k.KeyType)
+	}
+}
+
 func doS4U2Self(c *client.Client, conf *config.Config, username, userDomain string, impersonate string, tgt messages.Ticket, sessionKey types.EncryptionKey) (st messages.Ticket, err error) {
 	auth, err := types.NewAuthenticator(strings.ToUpper(userDomain), types.NewPrincipalName(nametype.KRB_NT_PRINCIPAL, username))
 	if err != nil {
@@ -217,6 +243,10 @@ func doS4U2Self(c *client.Client, conf *config.Config, username, userDomain stri
 	}
 
 	tgsReq, err := messages.NewS4UTGSReq(types.NewPrincipalName(nametype.KRB_NT_PRINCIPAL, impersonate), types.NewPrincipalName(nametype.KRB_NT_UNKNOWN, username), tgt.Realm, conf)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
 	tgsReq.PAData = types.PADataSequence{
 		types.PAData{
 			PADataType:  patype.PA_TGS_REQ,
@@ -228,7 +258,16 @@ func doS4U2Self(c *client.Client, conf *config.Config, username, userDomain stri
 	binary.Write(s4uByteArray, binary.LittleEndian, nametype.KRB_NT_PRINCIPAL)
 	binary.Write(s4uByteArray, binary.LittleEndian, []byte(impersonate+userDomain+"Kerberos"))
 
-	checksumEtype, _ := crypto.GetChksumEtype(chksumtype.KERB_CHECKSUM_HMAC_MD5)
+	cksumID, err := paForUserChksumType(sessionKey)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
+	checksumEtype, err := crypto.GetChksumEtype(cksumID)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
 	cksumHash, err := checksumEtype.GetChecksumHash(sessionKey.KeyValue, s4uByteArray.Bytes(), keyusage.KERB_NON_KERB_CKSUM_SALT)
 	if err != nil {
 		log.Errorln(err)
@@ -291,6 +330,10 @@ func doS4U2SelfU2U(c *client.Client, conf *config.Config, username, userDomain s
 	}
 
 	tgsReq, err := messages.NewS4UTGSReq(types.PrincipalName{}, types.NewPrincipalName(nametype.KRB_NT_UNKNOWN, username), tgt.Realm, conf)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
 	tgsReq.PAData = types.PADataSequence{
 		types.PAData{
 			PADataType:  patype.PA_TGS_REQ,
@@ -305,7 +348,16 @@ func doS4U2SelfU2U(c *client.Client, conf *config.Config, username, userDomain s
 	binary.Write(s4uByteArray, binary.LittleEndian, nametype.KRB_NT_PRINCIPAL)
 	binary.Write(s4uByteArray, binary.LittleEndian, []byte(impersonate+userDomain+"Kerberos"))
 
-	checksumEtype, _ := crypto.GetChksumEtype(chksumtype.KERB_CHECKSUM_HMAC_MD5)
+	cksumID, err := paForUserChksumType(sessionKey)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
+	checksumEtype, err := crypto.GetChksumEtype(cksumID)
+	if err != nil {
+		log.Errorln(err)
+		return
+	}
 	cksumHash, err := checksumEtype.GetChecksumHash(sessionKey.KeyValue, s4uByteArray.Bytes(), keyusage.KERB_NON_KERB_CKSUM_SALT)
 	if err != nil {
 		log.Errorln(err)
