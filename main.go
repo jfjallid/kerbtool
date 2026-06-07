@@ -40,16 +40,16 @@ import (
 	"github.com/jfjallid/go-smb/msdtyp"
 	"github.com/jfjallid/golog"
 
-	"github.com/jfjallid/gokrb5/v8/client"
-	"github.com/jfjallid/gokrb5/v8/config"
-	"github.com/jfjallid/gokrb5/v8/credentials"
-	"github.com/jfjallid/gokrb5/v8/types"
+	"github.com/jfjallid/gokrb5/v9/client"
+	"github.com/jfjallid/gokrb5/v9/config"
+	"github.com/jfjallid/gokrb5/v9/credentials"
+	"github.com/jfjallid/gokrb5/v9/types"
 
-	"github.com/jfjallid/gokrb5/v8/iana/etypeID"
-	"github.com/jfjallid/gokrb5/v8/iana/flags"
-	"github.com/jfjallid/gokrb5/v8/iana/nametype"
+	"github.com/jfjallid/gokrb5/v9/iana/etypeID"
+	"github.com/jfjallid/gokrb5/v9/iana/flags"
+	"github.com/jfjallid/gokrb5/v9/iana/nametype"
 
-	"github.com/jfjallid/gokrb5/v8/messages"
+	"github.com/jfjallid/gokrb5/v9/messages"
 	"github.com/jfjallid/mstypes"
 )
 
@@ -878,7 +878,7 @@ func setupKRB5Client(args *userArgs) (err error) {
 		args.c, _ = client.NewWithPassword(args.username, args.userDomainUpper, args.password, args.krbConf, settings...)
 		log.Infoln("Authenticated using password!")
 	}
-	if args.c != nil && !args.noLogin{
+	if args.c != nil && !args.noLogin {
 		err = args.c.Login()
 		if err != nil {
 			log.Errorf("Login failed: %s\n", err)
@@ -925,17 +925,17 @@ func setupKRB5Client(args *userArgs) (err error) {
 				}
 			}
 		} else if args.ticketB64 != "" {
-				var cred *credentials.Credential
-				cred, err = b64ToCCache(args.ticketB64)
-				if err != nil {
-					log.Errorln(err)
-					return
-				}
-				err = args.c.AddTicketToSession(cred, "")
-				if err != nil {
-					log.Errorln(err)
-					return
-				}
+			var cred *credentials.Credential
+			cred, err = b64ToCCache(args.ticketB64)
+			if err != nil {
+				log.Errorln(err)
+				return
+			}
+			err = args.c.AddTicketToSession(cred, "")
+			if err != nil {
+				log.Errorln(err)
+				return
+			}
 		}
 		// Check that principal name matches. Realm comparison is alias-aware
 		// via the client's runtime alias table, which was seeded from

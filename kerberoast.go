@@ -28,8 +28,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jfjallid/gokrb5/v8/iana/etypeID"
-	"github.com/jfjallid/gokrb5/v8/messages"
+	"github.com/jfjallid/gokrb5/v9/iana/etypeID"
+	"github.com/jfjallid/gokrb5/v9/messages"
 )
 
 var helpKerberoastOptions = `

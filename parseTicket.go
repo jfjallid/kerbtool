@@ -26,14 +26,14 @@ import (
 	"os"
 
 	"github.com/jfjallid/gofork/encoding/asn1"
-	"github.com/jfjallid/gokrb5/v8/credentials"
-	"github.com/jfjallid/gokrb5/v8/crypto"
-	"github.com/jfjallid/gokrb5/v8/iana/adtype"
-	"github.com/jfjallid/gokrb5/v8/iana/etypeID"
-	"github.com/jfjallid/gokrb5/v8/iana/flags"
-	"github.com/jfjallid/gokrb5/v8/messages"
-	"github.com/jfjallid/gokrb5/v8/pac"
-	"github.com/jfjallid/gokrb5/v8/types"
+	"github.com/jfjallid/gokrb5/v9/credentials"
+	"github.com/jfjallid/gokrb5/v9/crypto"
+	"github.com/jfjallid/gokrb5/v9/iana/adtype"
+	"github.com/jfjallid/gokrb5/v9/iana/etypeID"
+	"github.com/jfjallid/gokrb5/v9/iana/flags"
+	"github.com/jfjallid/gokrb5/v9/messages"
+	"github.com/jfjallid/gokrb5/v9/pac"
+	"github.com/jfjallid/gokrb5/v9/types"
 )
 
 var helpParseTicketOptions = `

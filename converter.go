@@ -29,10 +29,10 @@ import (
 	"time"
 
 	"encoding/base64"
-	"github.com/jfjallid/gokrb5/v8/credentials"
-	"github.com/jfjallid/gokrb5/v8/krberror"
-	"github.com/jfjallid/gokrb5/v8/messages"
-	"github.com/jfjallid/gokrb5/v8/types"
+	"github.com/jfjallid/gokrb5/v9/credentials"
+	"github.com/jfjallid/gokrb5/v9/krberror"
+	"github.com/jfjallid/gokrb5/v9/messages"
+	"github.com/jfjallid/gokrb5/v9/types"
 )
 
 var helpConvertTicketOptions = `

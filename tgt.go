@@ -27,10 +27,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jfjallid/gokrb5/v8/iana/nametype"
-	"github.com/jfjallid/gokrb5/v8/messages"
-	"github.com/jfjallid/gokrb5/v8/pac"
-	"github.com/jfjallid/gokrb5/v8/types"
+	"github.com/jfjallid/gokrb5/v9/iana/nametype"
+	"github.com/jfjallid/gokrb5/v9/messages"
+	"github.com/jfjallid/gokrb5/v9/pac"
+	"github.com/jfjallid/gokrb5/v9/types"
 )
 
 var helpAskTGTOptions = `

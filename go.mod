@@ -1,20 +1,20 @@
 module github.com/jfjallid/kerbtool
 
-go 1.24
+go 1.24.0
 
 require (
-	github.com/jfjallid/go-smb v0.6.3
+	github.com/jfjallid/go-smb v0.10.0
 	github.com/jfjallid/gofork v1.7.6
-	github.com/jfjallid/gokrb5/v8 v8.6.3
+	github.com/jfjallid/gokrb5/v9 v9.0.0
 	github.com/jfjallid/golog v0.3.6
-	github.com/jfjallid/mstypes v0.0.0-20250515143745-921e33065feb
-	golang.org/x/net v0.39.0
-	golang.org/x/term v0.31.0
+	github.com/jfjallid/mstypes v0.0.2
+	golang.org/x/crypto v0.48.0
+	golang.org/x/net v0.50.0
+	golang.org/x/term v0.40.0
 )
 
 require (
-	github.com/jfjallid/ndr v0.0.0-20250515143046-14ad19ef61a6 // indirect
-	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
+	github.com/jfjallid/ndr v0.1.1 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 	software.sslmate.com/src/go-pkcs12 v0.7.0 // indirect
 )
