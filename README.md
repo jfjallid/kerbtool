@@ -69,6 +69,8 @@ Usage: kerbtool <service> [options]
       --convert             Convert between CCACHE and KIRBI formats
       --kerberoast          Kerberoast specific account based on SPN
       --asreproast          AS-REP roast specific account that does not require pre-auth
+      --set-password        Change your own or reset another account's password (kpasswd)
+      --keytab              Create, read, and modify keytab files
   
 General options:
   -P, --port <port>           Kerberos Port (default 88)
@@ -79,16 +81,21 @@ General options:
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
   -n, --no-pass               Do not prompt for password
-      --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
-      --dns-host <ip:port>    Override system's default DNS resolver 
+      --dns-host <ip:port>    Override system's default DNS resolver
       --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
   -t, --timeout               Dial timeout in seconds (default 5)
-      
+
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 ```
@@ -106,16 +113,21 @@ General options:
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
   -n, --no-pass               Do not prompt for password
-      --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
-      --dns-host <ip:port>    Override system's default DNS resolver 
+      --dns-host <ip:port>    Override system's default DNS resolver
       --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
   -t, --timeout               Dial timeout in seconds (default 5)
-      
+
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 
@@ -143,16 +155,21 @@ General options:
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
   -n, --no-pass               Do not prompt for password
-      --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
-      --dns-host <ip:port>    Override system's default DNS resolver 
+      --dns-host <ip:port>    Override system's default DNS resolver
       --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
   -t, --timeout               Dial timeout in seconds (default 5)
-      
+
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 
@@ -183,16 +200,21 @@ General options:
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
   -n, --no-pass               Do not prompt for password
-      --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
-      --dns-host <ip:port>    Override system's default DNS resolver 
+      --dns-host <ip:port>    Override system's default DNS resolver
       --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
   -t, --timeout               Dial timeout in seconds (default 5)
-      
+
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 
@@ -241,16 +263,21 @@ General options:
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
   -n, --no-pass               Do not prompt for password
-      --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
-      --dns-host <ip:port>    Override system's default DNS resolver 
+      --dns-host <ip:port>    Override system's default DNS resolver
       --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
   -t, --timeout               Dial timeout in seconds (default 5)
-  
+
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 
@@ -274,16 +301,21 @@ General options:
   -p, --pass <pass>           Password
       --hash <NT Hash>        Hex encoded NT Hash for user password
   -n, --no-pass               Do not prompt for password
-      --dc-ip <ip>            Optionally specify ip of KDC requesting tickets
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
-      --dns-host <ip:port>    Override system's default DNS resolver 
+      --dns-host <ip:port>    Override system's default DNS resolver
       --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
   -t, --timeout               Dial timeout in seconds (default 5)
-      
+
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 
@@ -307,6 +339,10 @@ General options:
   -n, --no-pass               Do not prompt for password
       --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
       --dns-host <ip:port>    Override system's default DNS resolver
@@ -315,6 +351,7 @@ General options:
 
       --debug                 Enable debug logging
       --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
   -v, --version               Show version
 
 
@@ -323,12 +360,96 @@ options:
       --krb5-conf <file>      Read krb5.conf file and use as config
 ```
 
+### SetPassword specific usage
+```
+Usage: ./kerbtool --set-password [options]
+
+Change your own password or, with --target-user, reset another account's
+password over the Kerberos kpasswd protocol (RFC 3244, port 464).
+
+Without --target-user the authenticating account's own password is changed
+(works even if the current password is expired). With --target-user the
+authenticating account resets the named account's password and therefore
+must hold reset privileges over it.
+
+General options:
+  -P, --port <port>           Kerberos Port (default 88)
+  -d, --domain <domain>       Domain name to use for login
+      --netbios-domain <name> Explicit NETBIOS form of --domain (defaults to the first DNS label
+                              of --domain, uppercased). Permissive heuristic — see README note.
+  -u, --user <username>       Username
+  -p, --pass <pass>           Password
+      --hash <NT Hash>        Hex encoded NT Hash for user password
+  -n, --no-pass               Do not prompt for password
+      --dc <fqdn/ip>          Optionally specify fqdn or ip of KDC when requesting tickets
+      --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
+      --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
+      --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
+      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --keytab-file <file>    Authenticate using keys from an existing keytab file
+      --socks-host <target>   Establish connection via a SOCKS5 proxy server
+      --socks-port <port>     SOCKS5 proxy port (default 1080)
+      --dns-host <ip:port>    Override system's default DNS resolver
+      --dns-tcp               Force DNS lookups over TCP. Default true when using --socks-host
+  -t, --timeout               Dial timeout in seconds (default 5)
+
+      --debug                 Enable debug logging
+      --verbose               Enable verbose logging
+  -q, --quiet                 Reduce amount of output
+  -v, --version               Show version
+
+
+options:
+      --new-pass <password>   New password to set. Prompted for (with confirmation) if omitted.
+      --target-user <name>    Account to reset. Omit to change your own password.
+      --krb5-conf <file>      Read krb5.conf file and use as config
+```
+
+### Keytab specific usage
+```
+Usage: ./kerbtool --keytab [options]
+
+Operations (choose one; --list is the default):
+      --create                Create a new empty keytab (refuses to overwrite --file)
+      --list                  List the entries in the keytab
+      --add                   Add entries from the provided key material
+      --remove                Remove entries matching --principal/--realm
+      --replace               Remove matching entries for the principal, then add new ones
+      --update-kvno           Set the kvno of matching entries to --kvno
+
+options:
+      --file <path>           Keytab file to operate on (required)
+      --principal <name>      Principal, e.g. host/srv.dom.com or Administrator
+      --realm <REALM>         Realm for the principal (uppercased)
+      --salt <salt>           Override the salt used for --kt-pass derivation
+                              (default is the realm+principal derivation)
+      --kt-pass <password>    Derive key(s) from a password
+      --kt-pass-hex <hex>     Derive key(s) from a UTF-16LE password blob given as hex,
+                              e.g. an AD machine account password. RC4 uses MD4 of the
+                              bytes; AES uses the UTF-8 form. Pair with --salt or
+                              --query-salt for the correct (non-default) machine salt
+      --kt-hash <hex>         NT hash (RC4 / etype 23) key
+      --kt-aes128 <hex>       AES128 (etype 17) key
+      --kt-aes256 <hex>       AES256 (etype 18) key
+      --enctype <list>        Comma-separated enctypes to derive from --kt-pass (default
+                              aes256-cts-hmac-sha1-96,aes128-cts-hmac-sha1-96,rc4-hmac);
+                              for --remove/--update-kvno an optional single-enctype filter
+      --kvno <n>              Key version number to assign (default 1)
+      --match-kvno <n>        Only match entries with this kvno (remove/replace/update-kvno)
+      --query-salt            Fetch the account salt from the KDC for --kt-pass derivation
+                              (requires -d/--domain and KDC connectivity)
+
+The connection options (-d/--domain, --dc, etc.) are only used by --query-salt,
+which performs an unauthenticated AS-REQ to learn the account's real salt. All
+other keytab operations are fully offline.
+```
+
 ## AskTGT
 Request a TGT using a password, NT Hash or AES key
 ```
-/kerbtool --ask-tgt --user administrator --domain skynet-ops.corp --pass <pass>
-/kerbtool --ask-tgt --user administrator --domain skynet-ops.corp --hash <NT Hash>
-/kerbtool --ask-tgt --user administrator --domain skynet-ops.corp --aes-key <AES128/256 hex>
+/kerbtool --ask-tgt --user administrator --domain mydomain.local --pass <pass>
+/kerbtool --ask-tgt --user administrator --domain mydomain.local --hash <NT Hash>
+/kerbtool --ask-tgt --user administrator --domain mydomain.local --aes-key <AES128/256 hex>
 ```
 
 ## AskST
@@ -336,10 +457,10 @@ Request a service ticket for a given SPN using password, NT Hash, AES key or a
 CCache file with a TGT for the user when the environment variable KRB5CCNAME
 is set:
 ```
-./kerbtool --ask-st --user administrator --domain skynet-ops.corp --pass <pass> --spn cifs/dc01.skynet-ops.corp
-./kerbtool --ask-st --user administrator --domain skynet-ops.corp --hash <NT Hash> --spn cifs/dc01.skynet-ops.corp
-./kerbtool --ask-st --user administrator --domain skynet-ops.corp --aes-key <AES128/256 hex> --spn cifs/dc01.skynet-ops.corp
-./kerbtool --ask-st --user administrator --domain skynet-ops.corp --no-pass --spn cifs/dc01.skynet-ops.corp
+./kerbtool --ask-st --user administrator --domain mydomain.local --pass <pass> --spn cifs/dc01.mydomain.local
+./kerbtool --ask-st --user administrator --domain mydomain.local --hash <NT Hash> --spn cifs/dc01.mydomain.local
+./kerbtool --ask-st --user administrator --domain mydomain.local --aes-key <AES128/256 hex> --spn cifs/dc01.mydomain.local
+./kerbtool --ask-st --user administrator --domain mydomain.local --no-pass --spn cifs/dc01.mydomain.local
 ```
 
 Override the service name/SPN using the `--alt-service` parameter when both
@@ -353,18 +474,18 @@ Currently forging of Silver tickets, Golden tickets and Sapphire tickets are sup
 
 Forge a golden ticket using the krbtgt aes key:
 ```
-./kerbtool --forge --target Administrator --domain skynet-ops.corp --sign-aes <krbtgt AES key> --domain-sid <S-1-5-21-...>
+./kerbtool --forge --target Administrator --domain mydomain.local --sign-aes <krbtgt AES key> --domain-sid <S-1-5-21-...>
 ```
 
 Forge a silver ticket using the service account NT hash or AES key to impersonate the Administrator account:
 ```
-./kerbtool --forge --target Administrator --domain skynet-ops.corp --sign-nt <NT Hash> --domain-sid <S-1-5-21-...> --spn cifs/srv01.skynet-ops.local
-./kerbtool --forge --target Administrator --domain skynet-ops.corp --sign-aes <AES key> --domain-sid <S-1-5-21-...> --spn cifs/srv01.skynet-ops.local
+./kerbtool --forge --target Administrator --domain mydomain.local --sign-nt <NT Hash> --domain-sid <S-1-5-21-...> --spn cifs/srv01.mydomain.local
+./kerbtool --forge --target Administrator --domain mydomain.local --sign-aes <AES key> --domain-sid <S-1-5-21-...> --spn cifs/srv01.mydomain.local
 ```
 
 Forge a sapphire ticket to impersonate the Administrator account:
 ```
-./kerbtool --forge --user test --pass <pass> --domain skynet-ops.corp --sign-aes <krbtgt AES key> --domain-sid <S-1-5-21-...> --request --impersonate Administrator
+./kerbtool --forge --user test --pass <pass> --domain mydomain.local --sign-aes <krbtgt AES key> --domain-sid <S-1-5-21-...> --request --impersonate Administrator
 ```
 
 ## Convert tickets
@@ -393,11 +514,11 @@ The output would look something like this:
 Decrypting ticket with a keytype: 18, key: d7e3794...35
 Ticket content:
 TktVNO: 5
-Realm: SKYNET-OPS.CORP
-SName: (type: 2, name: krbtgt/SKYNET-OPS.CORP)
+Realm: MYDOMAIN.LOCAL
+SName: (type: 2, name: krbtgt/MYDOMAIN.LOCAL)
 Ticket encrypted part:
   Flags: [Forwardable Renewable Initial PreAuthent EncPARep Canonicalize]
-  CRealm: SKYNET-OPS.CORP
+  CRealm: MYDOMAIN.LOCAL
   CName: administrator
   CName: (type: 1, name: administrator)
   AuthTime: 2025-06-07 15:54:49 +0000 UTC
@@ -434,7 +555,7 @@ GroupIDs: [{RelativeID:1108 Attributes:7} {RelativeID:513 Attributes:7} {Relativ
 UserFlags: 32
 UserSessionKey: {CypherBlock:[{Data:[0 0 0 0 0 0 0 0]} {Data:[0 0 0 0 0 0 0 0]}]}
 LogonServer: DC01
-LogonDomainName: SKYNET-OPS
+LogonDomainName: MYDOMAIN
 LogonDomainID: {Revision:1 SubAuthorityCount:4 IdentifierAuthority:[0 0 0 0 0 5] SubAuthority:[21 3301781224 2943037444 2400903060]}
 UserAccountControl: 528
 SubAuthStatus: 0
@@ -466,7 +587,7 @@ Signature: afd832fa107281815ed8c624
 RODCIdentifier: 0
 
 ### UPNDNSInfo ###
-&{UPNLength:58 UPNOffset:16 DNSDomainNameLength:30 DNSDomainNameOffset:80 Flags:1 SamNameLength:0 SamNameOffset:0 SidLength:0 SidOffset:0 UPN:Administrator@skynet-ops.corp DNSDomain:SKYNET-OPS.CORP SamName: Sid:<nil>}
+&{UPNLength:58 UPNOffset:16 DNSDomainNameLength:30 DNSDomainNameOffset:80 Flags:1 SamNameLength:0 SamNameOffset:0 SidLength:0 SidOffset:0 UPN:Administrator@mydomain.local DNSDomain:MYDOMAIN.LOCAL SamName: Sid:<nil>}
 
 ### PacAttributesInfo ###
 <nil>
@@ -492,13 +613,13 @@ Limited support for  Kerberoasting as there is no LDAP support to figure out whi
 Currently it is supported to target a single user to request a service ticket and extract the hash for cracking.
 Multiple formats for the username are supported according to principal name type NT-ENTERPRISE:
 ```
-./kerbtool --kerberoast -u Administrator -d skynet-ops.corp --target malcolm
+./kerbtool --kerberoast -u Administrator -d mydomain.local --target malcolm
 ```
 ```
-./kerbtool --kerberoast -u Administrator -d skynet-ops.corp --target malcolm@skynet-ops.corp
+./kerbtool --kerberoast -u Administrator -d mydomain.local --target malcolm@mydomain.local
 ```
 ```
-./kerbtool --kerberoast -u Administrator -d skynet-ops.corp --target skynet-ops\\malcolm
+./kerbtool --kerberoast -u Administrator -d mydomain.local --target mydomain\\malcolm
 ```
 
 ## AS-Rep roast
@@ -506,11 +627,67 @@ Limited support for AS-REP roasting as there is no LDAP support to figure out wh
 Currently it is supported to target a single user to request a TGT and extract the hash for cracking.
 Multiple formats for the username are supported according to principal name type NT-ENTERPRISE:
 ```
-./kerbtool --asreproast -d skynet-ops.corp --target tpol
+./kerbtool --asreproast -d mydomain.local --target tpol
 ```
 ```
-./kerbtool --asreproast -d skynet-ops.corp --target tpol@skynet-ops.corp
+./kerbtool --asreproast -d mydomain.local --target tpol@mydomain.local
 ```
 ```
-./kerbtool --asreproast -d skynet-ops.corp --target skynet-ops\\tpol
+./kerbtool --asreproast -d mydomain.local --target mydomain\\tpol
+```
+
+## Set password
+Change a password over the Kerberos kpasswd protocol (RFC 3244, port 464).
+Without `--target-user` the authenticating account's own password is changed,
+which works even when the current password has expired. Authentication accepts
+the usual credential forms (password, NT hash, AES key, PFX or keytab). The new
+password is prompted for (with confirmation) when `--new-pass` is omitted.
+
+Change your own password:
+```
+./kerbtool --set-password -u administrator -d mydomain.local --pass <current pass> --new-pass <new pass>
+```
+
+Reset another account's password (requires reset privileges over the target):
+```
+./kerbtool --set-password -u administrator -d mydomain.local --pass <pass> --target-user malcolm --new-pass <new pass>
+```
+
+## Keytab management
+Create, inspect and modify keytab files offline. `--list` is the default
+operation; `--create`, `--add`, `--remove`, `--replace` and `--update-kvno`
+select the others. Key material can be supplied directly (`--kt-hash`,
+`--kt-aes128`, `--kt-aes256`) or derived from a password (`--kt-pass`, or
+`--kt-pass-hex` for a UTF-16LE machine account password blob).
+
+> **⚠️ Salt note.** Password-derived AES keys depend on the salt. The default
+> `realm+principal` derivation is correct for user accounts but **not** for
+> machine accounts, whose salt is host-specific. For machine accounts pass the
+> real salt with `--salt`, or let kerbtool fetch it from the KDC with
+> `--query-salt` (the only keytab sub-mode that touches the network).
+
+List the contents of a keytab:
+```
+./kerbtool --keytab --file service.keytab --list
+```
+
+Create a keytab with keys derived from a password (default enctype set):
+```
+./kerbtool --keytab --create --principal host/srv.mydomain.local --realm mydomain.local --kt-pass <pass>
+```
+
+Add a raw AES256 key (and an NT hash) for a principal to an existing keytab:
+```
+./kerbtool --keytab --file service.keytab --add --principal MSSQLSvc/db01.mydomain.local --realm mydomain.local --kt-aes256 <64 hex> --kt-hash <32 hex>
+```
+
+Derive a machine account's keys using the KDC-provided salt:
+```
+./kerbtool --keytab --create --principal host/srv.mydomain.local --realm mydomain.local --kt-pass-hex <UTF-16LE hex> --query-salt -d mydomain.local
+```
+
+Remove entries for a principal, or bump their kvno:
+```
+./kerbtool --keytab --file service.keytab --remove --principal MSSQLSvc/db01.mydomain.local --realm mydomain.local
+./kerbtool --keytab --file service.keytab --update-kvno --principal host/srv.mydomain.local --realm mydomain.local --kvno 5
 ```

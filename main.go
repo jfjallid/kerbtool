@@ -43,6 +43,7 @@ import (
 	"github.com/jfjallid/gokrb5/v9/client"
 	"github.com/jfjallid/gokrb5/v9/config"
 	"github.com/jfjallid/gokrb5/v9/credentials"
+	"github.com/jfjallid/gokrb5/v9/keytab"
 	"github.com/jfjallid/gokrb5/v9/types"
 
 	"github.com/jfjallid/gokrb5/v9/iana/etypeID"
@@ -54,7 +55,7 @@ import (
 )
 
 var log = golog.Get("")
-var release string = "0.2.1"
+var release string = "0.3.0"
 var myFlags *flag.FlagSet
 
 var helpMsg = `
@@ -68,6 +69,8 @@ var helpMsg = `
           --convert             Convert between CCACHE and KIRBI formats
           --kerberoast          Kerberoast specific account based on SPN
           --asreproast          AS-REP roast specific account that does not require pre-auth
+          --set-password        Change your own or reset another account's password (kpasswd)
+          --keytab              Create, read, and modify keytab files
       ` + helpConnectionOptions + `
 `
 var helpGeneralOptions = `
@@ -92,6 +95,7 @@ var helpConnectionOptions = `
           --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
           --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
           --pfx-pass <pass>       Password for the PFX file (default: empty)
+          --keytab-file <file>    Authenticate using keys from an existing keytab file
           --socks-host <target>   Establish connection via a SOCKS5 proxy server
           --socks-port <port>     SOCKS5 proxy port (default 1080)
           --dns-host <ip:port>    Override system's default DNS resolver 
@@ -250,22 +254,23 @@ type connArgs struct {
 	// realmsMatch() for the permissive comparison this enables.
 	netbiosDomain      string
 	netbiosDomainUpper string
-	socksHost  string
-	dcIP       string
-	dc         string // Hostname or ip
-	dcHost     string
-	dcDomain   string
-	aesKey     binaryArg
-	sha2       bool
-	pfxFile    string
-	pfxPass    string
-	dnsHost    string
-	port       int
-	timeout    time.Duration
-	socksPort  int
-	kerberos   bool
-	dnsTCP     bool
-	noPass     bool
+	socksHost          string
+	dcIP               string
+	dc                 string // Hostname or ip
+	dcHost             string
+	dcDomain           string
+	aesKey             binaryArg
+	sha2               bool
+	pfxFile            string
+	pfxPass            string
+	keytabFile         string // Keytab file to authenticate from (--keytab-file)
+	dnsHost            string
+	port               int
+	timeout            time.Duration
+	socksPort          int
+	kerberos           bool
+	dnsTCP             bool
+	noPass             bool
 	// Non-user arguments
 	krbConf *config.Config
 	c       *client.Client
@@ -273,50 +278,52 @@ type connArgs struct {
 }
 
 type generalArgs struct {
-	debug      bool
-	version    bool
-	verbose    bool
-	quiet      bool
-	askTGT     bool
-	askST      bool
-	forge      bool
-	parse      bool
-	convert    bool
-	kerberoast bool
-	asRepRoast bool
+	debug       bool
+	version     bool
+	verbose     bool
+	quiet       bool
+	askTGT      bool
+	askST       bool
+	forge       bool
+	parse       bool
+	convert     bool
+	kerberoast  bool
+	asRepRoast  bool
+	setPassword bool
+	keytab      bool
 }
 
 type userArgs struct {
 	connArgs
 	generalArgs
-	targetUsername string
-	userRid        uint64
-	signKeyNT      binaryArg
-	signKeyAES     binaryArg
-	domainSid      SID
-	extraSids      SIDS
-	groups         ridList
-	logonServer    string
-	spn            string
-	ticketDuration time.Duration
-	inspect        bool
-	targetFile     string // CCACHE file to use for output
-	requestRC4     bool
-	dnsHost        string
-	dnsTCP         bool
-	krb5ConfFile   string
-	request        bool
-	impersonate    string
-	ticketBytes    binaryArg
-	altService     string
-	inputFilename  string
-	outputFilename string
-	ticketB64      string
-	dumpAllTickets      bool
-	targetRealm         string
-	u2u                 bool
+	targetUsername       string
+	userRid              uint64
+	signKeyNT            binaryArg
+	signKeyAES           binaryArg
+	domainSid            SID
+	extraSids            SIDS
+	groups               ridList
+	logonServer          string
+	spn                  string
+	ticketDuration       time.Duration
+	inspect              bool
+	targetFile           string // CCACHE file to use for output
+	requestRC4           bool
+	dnsHost              string
+	dnsTCP               bool
+	krb5ConfFile         string
+	request              bool
+	impersonate          string
+	ticketBytes          binaryArg
+	altService           string
+	inputFilename        string
+	outputFilename       string
+	ticketB64            string
+	dumpAllTickets       bool
+	targetRealm          string
+	u2u                  bool
 	additionalTicketFile string
-	unpacHash           bool
+	unpacHash            bool
 	// Non-user arguments
 	serviceDomain   string
 	templateTicket  messages.Ticket
@@ -331,7 +338,28 @@ type userArgs struct {
 	signAes         bool
 	userDomainUpper string
 	ccacheFile      string // KRB5CCACHE filename
-	noLogin			bool // When we want to handle login manually
+	noLogin         bool   // When we want to handle login manually
+	newPassword     string // New password for --set-password
+	// Keytab management (--keytab action)
+	ktFile        string // Keytab file to create/read/modify
+	ktCreate      bool
+	ktList        bool
+	ktAdd         bool
+	ktRemove      bool
+	ktReplace     bool
+	ktUpdateKvno  bool
+	ktPrincipal   string
+	ktRealm       string
+	ktSalt        string
+	ktPassword    string
+	ktPasswordHex binaryArg
+	ktHash        binaryArg
+	ktAes128      binaryArg
+	ktAes256      binaryArg
+	ktEnctypes    stringList
+	ktKvno        int
+	ktMatchKvno   int
+	querySalt     bool // Fetch the account salt from the KDC for password derivation
 }
 
 func addConnectionArgs(flagSet *flag.FlagSet, argv *userArgs) {
@@ -358,6 +386,7 @@ func addConnectionArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.BoolVar(&argv.sha2, "sha2", false, "")
 	flagSet.StringVar(&argv.pfxFile, "pfx", "", "")
 	flagSet.StringVar(&argv.pfxPass, "pfx-pass", "", "")
+	flagSet.StringVar(&argv.keytabFile, "keytab-file", "", "")
 	flagSet.StringVar(&argv.dnsHost, "dns-host", "", "")
 	flagSet.BoolVar(&argv.dnsTCP, "dns-tcp", false, "")
 	flagSet.BoolVar(&argv.noPass, "n", false, "")
@@ -441,6 +470,34 @@ func addASREProastArgs(flagSet *flag.FlagSet, argv *userArgs) {
 	flagSet.StringVar(&argv.krb5ConfFile, "krb5-conf", "", "")
 }
 
+func addSetPasswordArgs(flagSet *flag.FlagSet, argv *userArgs) {
+	flagSet.StringVar(&argv.newPassword, "new-pass", "", "")
+	flagSet.StringVar(&argv.targetUsername, "target-user", "", "")
+	flagSet.StringVar(&argv.krb5ConfFile, "krb5-conf", "", "")
+}
+
+func addKeytabArgs(flagSet *flag.FlagSet, argv *userArgs) {
+	flagSet.StringVar(&argv.ktFile, "file", "", "")
+	flagSet.BoolVar(&argv.ktCreate, "create", false, "")
+	flagSet.BoolVar(&argv.ktList, "list", false, "")
+	flagSet.BoolVar(&argv.ktAdd, "add", false, "")
+	flagSet.BoolVar(&argv.ktRemove, "remove", false, "")
+	flagSet.BoolVar(&argv.ktReplace, "replace", false, "")
+	flagSet.BoolVar(&argv.ktUpdateKvno, "update-kvno", false, "")
+	flagSet.StringVar(&argv.ktPrincipal, "principal", "", "")
+	flagSet.StringVar(&argv.ktRealm, "realm", "", "")
+	flagSet.StringVar(&argv.ktSalt, "salt", "", "")
+	flagSet.StringVar(&argv.ktPassword, "kt-pass", "", "")
+	flagSet.Var(&argv.ktPasswordHex, "kt-pass-hex", "")
+	flagSet.Var(&argv.ktHash, "kt-hash", "")
+	flagSet.Var(&argv.ktAes128, "kt-aes128", "")
+	flagSet.Var(&argv.ktAes256, "kt-aes256", "")
+	flagSet.Var(&argv.ktEnctypes, "enctype", "")
+	flagSet.IntVar(&argv.ktKvno, "kvno", 1, "")
+	flagSet.IntVar(&argv.ktMatchKvno, "match-kvno", -1, "")
+	flagSet.BoolVar(&argv.querySalt, "query-salt", false, "")
+}
+
 func handleArgs() (action byte, argv *userArgs, err error) {
 	myFlags = flag.NewFlagSet("", flag.ExitOnError)
 	myFlags.Usage = func() {
@@ -455,6 +512,8 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 	myFlags.BoolVar(&argv.convert, "convert", false, "")
 	myFlags.BoolVar(&argv.kerberoast, "kerberoast", false, "")
 	myFlags.BoolVar(&argv.asRepRoast, "asreproast", false, "")
+	myFlags.BoolVar(&argv.setPassword, "set-password", false, "")
+	myFlags.BoolVar(&argv.keytab, "keytab", false, "")
 	myFlags.BoolVar(&argv.version, "v", false, "")
 	myFlags.BoolVar(&argv.version, "version", false, "")
 
@@ -492,6 +551,12 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 		numAction++
 	}
 	if argv.asRepRoast {
+		numAction++
+	}
+	if argv.setPassword {
+		numAction++
+	}
+	if argv.keytab {
 		numAction++
 	}
 	if numAction != 1 {
@@ -547,8 +612,25 @@ func handleArgs() (action byte, argv *userArgs, err error) {
 		}
 		addASREProastArgs(myFlags, argv)
 		action = 7
+	} else if argv.setPassword {
+		myFlags.Usage = func() {
+			fmt.Println(helpSetPasswordOptions)
+			os.Exit(0)
+		}
+		addSetPasswordArgs(myFlags, argv)
+		action = 8
+	} else if argv.keytab {
+		myFlags.Usage = func() {
+			fmt.Println(helpKeytabOptions)
+			os.Exit(0)
+		}
+		addKeytabArgs(myFlags, argv)
+		action = 9
 	}
 
+	// --convert and --parse are fully offline. --keytab is offline too, but its
+	// --query-salt sub-mode needs to reach a KDC, so it still receives the
+	// connection flags (plain management flows simply ignore them).
 	if !argv.convert && !argv.parse {
 		addConnectionArgs(myFlags, argv)
 	}
@@ -846,7 +928,7 @@ func setupKRB5Client(args *userArgs) (err error) {
 	/* If password is specified with --pass flag, use it to logon and then add potential ccache entries.
 	If no pass is specified. Try to use potential ccache entries, otherwise fail later
 	*/
-	if (args.password == "") && (args.hash == nil) && (args.aesKey == nil) && (args.pfxFile == "") {
+	if (args.password == "") && (args.hash == nil) && (args.aesKey == nil) && (args.pfxFile == "") && (args.keytabFile == "") {
 		if !args.noPass {
 			var passBytes []byte
 			fmt.Printf("Enter password: ")
@@ -859,7 +941,20 @@ func setupKRB5Client(args *userArgs) (err error) {
 			args.password = string(passBytes)
 		}
 	}
-	if args.aesKey != nil {
+	if args.keytabFile != "" {
+		var kt *keytab.Keytab
+		kt, err = keytab.Load(args.keytabFile)
+		if err != nil {
+			err = fmt.Errorf("failed to load keytab file %s: %s", args.keytabFile, err)
+			log.Errorln(err)
+			return
+		}
+		// The gokrb5 client constrains the AS-REQ etypes to those present in the
+		// keytab during Login(), so the KDC keys pre-auth and the AS-REP reply
+		// with an algorithm we actually hold.
+		args.c, _ = client.NewWithKeytab(args.username, args.userDomainUpper, kt, args.krbConf, settings...)
+		log.Infoln("Authenticated using keytab!")
+	} else if args.aesKey != nil {
 		args.c, _ = client.NewWithKeyEtype(args.username, args.userDomainUpper, args.aesKey, aesKeyEType, args.krbConf, settings...)
 		log.Infoln("Authenticated using aes key!")
 	} else if args.hash != nil {
@@ -1303,7 +1398,34 @@ func main() {
 		}
 	}
 
-	if args.askTGT || args.askST || args.request || args.kerberoast || args.asRepRoast {
+	if args.setPassword && args.targetUsername == "" {
+		// Self password change does its own AS-REQ to kadmin/changepw, so no TGT
+		// login is needed. This also lets us change an expired password.
+		args.noLogin = true
+	}
+
+	if args.keytab && args.querySalt {
+		// --salt overrides salt derivation entirely, so a KDC lookup makes no
+		// sense alongside it. Catch this before setupKRB5Client runs, otherwise
+		// the conflict would surface as a confusing "missing --domain" error.
+		if args.ktSalt != "" {
+			log.Errorf("Choose only ONE of --salt and --query-salt")
+			myFlags.Usage()
+		}
+		// Querying the salt is an unauthenticated AS-REQ: we only need a client
+		// to reach the KDC, not a valid login. Mirror the asreproast hack and
+		// feed a placeholder credential when none was supplied so the client can
+		// be constructed.
+		args.noLogin = true
+		if args.username == "" {
+			args.username = args.ktPrincipal
+		}
+		if args.password == "" && args.hash == nil && args.aesKey == nil && args.pfxFile == "" && args.keytabFile == "" {
+			args.password = "Fake Password"
+		}
+	}
+
+	if args.askTGT || args.askST || args.request || args.kerberoast || args.asRepRoast || args.setPassword || (args.keytab && args.querySalt) {
 		err = setupKRB5Client(args)
 		if err != nil {
 			log.Errorln(err)
@@ -1351,6 +1473,18 @@ func main() {
 		}
 	case 7:
 		err = handleASReperoast(args)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+	case 8:
+		err = handleSetPassword(args)
+		if err != nil {
+			log.Errorln(err)
+			return
+		}
+	case 9:
+		err = handleKeytab(args)
 		if err != nil {
 			log.Errorln(err)
 			return
