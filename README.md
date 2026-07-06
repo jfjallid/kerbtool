@@ -85,7 +85,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -117,7 +117,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -159,7 +159,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -204,7 +204,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -267,7 +267,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -305,7 +305,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -341,7 +341,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -385,7 +385,7 @@ General options:
       --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
       --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
       --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-      --pfx-pass <pass>       Password for the PFX file (default: empty)
+      --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
       --keytab-file <file>    Authenticate using keys from an existing keytab file
       --socks-host <target>   Establish connection via a SOCKS5 proxy server
       --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -450,6 +450,15 @@ Request a TGT using a password, NT Hash or AES key
 /kerbtool --ask-tgt --user administrator --domain mydomain.local --pass <pass>
 /kerbtool --ask-tgt --user administrator --domain mydomain.local --hash <NT Hash>
 /kerbtool --ask-tgt --user administrator --domain mydomain.local --aes-key <AES128/256 hex>
+```
+
+Request a TGT via PKINIT using a PFX/P12 certificate. If `--pfx-pass` is
+omitted, kerbtool securely prompts for the PFX password; pass `--pfx-pass ""`
+explicitly to attempt an empty password without prompting:
+```
+/kerbtool --ask-tgt --user administrator --domain mydomain.local --pfx cert.pfx
+/kerbtool --ask-tgt --user administrator --domain mydomain.local --pfx cert.pfx --pfx-pass ""
+/kerbtool --ask-tgt --user administrator --domain mydomain.local --pfx cert.pfx --pfx-pass <pass>
 ```
 
 ## AskST

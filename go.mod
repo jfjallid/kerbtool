@@ -3,10 +3,10 @@ module github.com/jfjallid/kerbtool
 go 1.24.0
 
 require (
-	github.com/jfjallid/go-smb v0.10.0
+	github.com/jfjallid/go-smb v0.11.0
 	github.com/jfjallid/gofork v1.7.6
-	github.com/jfjallid/gokrb5/v9 v9.0.0
-	github.com/jfjallid/golog v0.3.6
+	github.com/jfjallid/gokrb5/v9 v9.1.0
+	github.com/jfjallid/golog v0.4.0
 	github.com/jfjallid/mstypes v0.0.2
 	golang.org/x/crypto v0.48.0
 	golang.org/x/net v0.50.0

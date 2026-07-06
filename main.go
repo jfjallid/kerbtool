@@ -55,7 +55,7 @@ import (
 )
 
 var log = golog.Get("")
-var release string = "0.3.0"
+var release string = "0.4.0"
 var myFlags *flag.FlagSet
 
 var helpMsg = `
@@ -94,7 +94,7 @@ var helpConnectionOptions = `
           --aes-key <AES key>     Use a hex encoded AES128/256 key for Kerberos authentication
           --sha2                  (experimental) Use SHA256 and SHA384 for provided AES key
           --pfx <file>            Path to PFX/P12 certificate file for PKINIT authentication
-          --pfx-pass <pass>       Password for the PFX file (default: empty)
+          --pfx-pass <pass>       Password for the PFX file (prompts if omitted; pass "" for an empty password)
           --keytab-file <file>    Authenticate using keys from an existing keytab file
           --socks-host <target>   Establish connection via a SOCKS5 proxy server
           --socks-port <port>     SOCKS5 proxy port (default 1080)
@@ -966,6 +966,17 @@ func setupKRB5Client(args *userArgs) (err error) {
 			err = fmt.Errorf("failed to read PFX file %s: %s", args.pfxFile, readErr)
 			log.Errorln(err)
 			return
+		}
+		if !isFlagSet("pfx-pass") {
+			var passBytes []byte
+			fmt.Printf("Enter PFX password: ")
+			passBytes, err = term.ReadPassword(int(os.Stdin.Fd()))
+			fmt.Println()
+			if err != nil {
+				log.Errorln(err)
+				return
+			}
+			args.pfxPass = string(passBytes)
 		}
 		args.c, _ = client.NewWithPFX(args.username, args.userDomainUpper, pfxData, args.pfxPass, args.krbConf, settings...)
 		log.Infoln("Authenticating using PKINIT with PFX certificate!")
